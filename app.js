@@ -596,3 +596,4 @@ function clearManagementInfo() {
   // Reset hold field disabled state
   toggleHoldField();
 }
+
