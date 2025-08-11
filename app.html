@@ -43,25 +43,93 @@
       <!-- Dashboard Section -->
       <section id="dashboardSection" class="section">
         <h2>Dashboard</h2>
-        <table id="dashboardTable">
-          <thead>
-            <tr>
-              <th>Form #</th>
-              <th>ID</th>
-              <th>Name</th>
-              <th>Gender</th>
-              <th>DOB</th>
-              <th>Email</th>
-              <th>Mobile</th>
-              <th>Plan</th>
-              <th>Amount</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="dashboardBody">
-          </tbody>
-        </table>
+        <!-- Container holding all status tables. Each table is rendered dynamically based on member status. -->
+        <div id="dashboardStatuses" class="status-grid">
+          <!-- Active members table -->
+          <div class="status-card" id="activeCard">
+            <h3 id="activeHeader">Active (0)</h3>
+            <div class="table-container">
+              <table id="activeTable">
+                <thead>
+                  <tr>
+                    <th data-key="name" class="sortable">Name</th>
+                    <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="amount" class="sortable">Amount</th>
+                    <th data-key="joinDate" class="sortable">Join Date</th>
+                    <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="status" class="sortable">Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="activeBody"></tbody>
+              </table>
+            </div>
+            <div id="activePagination" class="pagination"></div>
+          </div>
+          <!-- Hold members table -->
+          <div class="status-card" id="holdCard">
+            <h3 id="holdHeader">Hold (0)</h3>
+            <div class="table-container">
+              <table id="holdTable">
+                <thead>
+                  <tr>
+                    <th data-key="name" class="sortable">Name</th>
+                    <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="amount" class="sortable">Amount</th>
+                    <th data-key="joinDate" class="sortable">Join Date</th>
+                    <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="status" class="sortable">Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="holdBody"></tbody>
+              </table>
+            </div>
+            <div id="holdPagination" class="pagination"></div>
+          </div>
+          <!-- Cancelled members table -->
+          <div class="status-card" id="cancelledCard">
+            <h3 id="cancelledHeader">Cancelled (0)</h3>
+            <div class="table-container">
+              <table id="cancelledTable">
+                <thead>
+                  <tr>
+                    <th data-key="name" class="sortable">Name</th>
+                    <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="amount" class="sortable">Amount</th>
+                    <th data-key="joinDate" class="sortable">Join Date</th>
+                    <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="status" class="sortable">Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="cancelledBody"></tbody>
+              </table>
+            </div>
+            <div id="cancelledPagination" class="pagination"></div>
+          </div>
+          <!-- Deactivated members table -->
+          <div class="status-card" id="deactivatedCard">
+            <h3 id="deactivatedHeader">Deactivated (0)</h3>
+            <div class="table-container">
+              <table id="deactivatedTable">
+                <thead>
+                  <tr>
+                    <th data-key="name" class="sortable">Name</th>
+                    <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="amount" class="sortable">Amount</th>
+                    <th data-key="joinDate" class="sortable">Join Date</th>
+                    <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="status" class="sortable">Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody id="deactivatedBody"></tbody>
+              </table>
+            </div>
+            <div id="deactivatedPagination" class="pagination"></div>
+          </div>
+        </div>
       </section>
 
       <!-- Add/Update Members Section -->
@@ -215,7 +283,54 @@
       <!-- Staff Section -->
       <section id="staffSection" class="section" style="display:none;">
         <h2>Staff Management</h2>
-        <p>Coming soon: Add or remove staff, assign permissions and view access rights.</p>
+        <!-- Button to add a new user -->
+        <button type="button" id="addUserBtn" onclick="showUserForm(null)" class="primary-btn">Add User</button>
+        <!-- Container for the staff users table -->
+        <div class="table-container">
+          <table id="staffTable">
+            <thead>
+              <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              <!-- Staff rows will be injected here -->
+            </tbody>
+          </table>
+        </div>
+        <!-- User form for adding/editing users -->
+        <div id="userFormContainer" class="modal" style="display:none;">
+          <div class="modal-content">
+            <span class="close" onclick="hideUserForm()">&times;</span>
+            <h3 id="userFormTitle">Add User</h3>
+            <form id="userForm" onsubmit="event.preventDefault(); saveUser();">
+              <label>Username*
+                <input type="text" id="uUsername" required>
+              </label>
+              <label>Password* (leave blank to keep unchanged on edit)
+                <input type="password" id="uPassword">
+              </label>
+              <label>Confirm Password*
+                <input type="password" id="uConfirm">
+              </label>
+              <label>Role*
+                <select id="uRole" required onchange="renderPermissionToggles()">
+                  <option value="">Select role</option>
+                  <option value="admin">Admin</option>
+                  <option value="staff-basic">Staff Basic</option>
+                  <option value="staff-extended">Staff Extended</option>
+                </select>
+              </label>
+              <div id="permissionToggles" class="permission-toggles"></div>
+              <div class="button-row">
+                <button type="submit">Save</button>
+                <button type="button" onclick="hideUserForm()">Cancel</button>
+              </div>
+            </form>
+          </div>
+        </div>
       </section>
 
       <!-- Settings Section -->
