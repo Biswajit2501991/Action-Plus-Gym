@@ -53,6 +53,27 @@ const dashboardState = {
 };
 const pageSize = 10;
 
+// ------------------------------
+// Admin logs state and settings
+// ------------------------------
+/*
+ * Logs are stored in localStorage under the key 'apgm.logs.v1'. When actions
+ * occur (login, logout, member create/update, user create/update), a log
+ * event is recorded via logEvent(). The logs page filters by date, actor,
+ * action and search term, with its own pagination. Only the last 90 days of
+ * logs are kept, capped to 5,000 entries.
+ */
+const logsState = {
+  from: '',     // ISO date string for start of range
+  to: '',       // ISO date string for end of range
+  actor: '',    // username filter
+  action: '',   // action filter (e.g., member.create)
+  search: '',   // free text search
+  page: 1,
+  pageSize: 25
+};
+let logsFilterTimeout = null;
+
 // Check if we are on the login page or the app page
 document.addEventListener('DOMContentLoaded', () => {
   const isLoginPage = document.body.classList.contains('login-page');
@@ -94,6 +115,17 @@ function handleLogin(event) {
     const effective = computeEffectivePermissions(user);
     const storedUser = { ...user, effectivePermissions: effective };
     sessionStorage.setItem('currentUser', JSON.stringify(storedUser));
+    // Log login event
+    try {
+      logEvent({
+        actor: user.username,
+        action: 'auth.login',
+        targetType: 'system',
+        summary: 'Logged in'
+      });
+    } catch (err) {
+      // ignore logging errors
+    }
     // Redirect to main app
     window.location.href = 'app.html';
   } else {
@@ -126,7 +158,7 @@ function adjustRoleBasedUI() {
   const perms = userObj.effectivePermissions || [];
   const navItems = document.querySelectorAll('.sidebar li');
   // Map nav items by index to permission names
-  const navPerms = ['dashboard', 'members', 'sms', 'finance', 'staff', 'settings', 'logs'];
+  const navPerms = ['dashboard','members','sms','finance','staff','settings','logs'];
   navItems.forEach((li, idx) => {
     const perm = navPerms[idx];
     if (!perms.includes(perm)) {
@@ -138,6 +170,21 @@ function adjustRoleBasedUI() {
 }
 
 function logout() {
+  // Log logout event before clearing session
+  try {
+    const stored = sessionStorage.getItem('currentUser');
+    if (stored) {
+      const uObj = JSON.parse(stored);
+      logEvent({
+        actor: uObj.username,
+        action: 'auth.logout',
+        targetType: 'system',
+        summary: 'Logged out'
+      });
+    }
+  } catch (err) {
+    // ignore logging errors
+  }
   sessionStorage.removeItem('currentUser');
   window.location.href = 'login.html';
 }
@@ -206,6 +253,8 @@ function showSection(section) {
     case 'logs':
       document.getElementById('logsSection').style.display = '';
       navItems[6].classList.add('active');
+      // Render logs each time we enter the logs section
+      renderLogs();
       break;
   }
 }
@@ -426,6 +475,12 @@ function saveUser() {
   // Determine grants and revokes relative to the selected role
   const grants = selectedPerms.filter(p => !basePerms.includes(p));
   const revokes = basePerms.filter(p => !selectedPerms.includes(p));
+  // Determine if this is a new user or an update, and capture old user state for logging
+  const isNewUser = (editingUserIndex === null);
+  let oldUserCopy = null;
+  if (!isNewUser && users[editingUserIndex]) {
+    oldUserCopy = { ...users[editingUserIndex] };
+  }
   if (editingUserIndex === null) {
     // Add new user
     const newUser = {
@@ -436,6 +491,22 @@ function saveUser() {
       revokes: revokes
     };
     users.push(newUser);
+    // Log user creation event
+    try {
+      const currStr = sessionStorage.getItem('currentUser');
+      const currObj = currStr ? JSON.parse(currStr) : {};
+      const actor = currObj.username || '';
+      logEvent({
+        actor: actor,
+        action: 'user.create',
+        targetType: 'user',
+        targetId: newUser.username,
+        summary: `Created user ${newUser.username}`,
+        meta: { role: newUser.role, grants: newUser.grants, revokes: newUser.revokes }
+      });
+    } catch (err) {
+      // ignore logging errors
+    }
   } else {
     // Update existing user
     const user = users[editingUserIndex];
@@ -461,6 +532,29 @@ function saveUser() {
       } catch (err) {
         // ignore
       }
+    }
+    // Log user update event
+    try {
+      const currStr2 = sessionStorage.getItem('currentUser');
+      const currObj2 = currStr2 ? JSON.parse(currStr2) : {};
+      const actor2 = currObj2.username || '';
+      if (oldUserCopy) {
+        logEvent({
+          actor: actor2,
+          action: 'user.update',
+          targetType: 'user',
+          targetId: user.username,
+          summary: `Updated user ${user.username}`,
+          meta: {
+            roleBefore: oldUserCopy.role,
+            roleAfter: user.role,
+            grants: user.grants,
+            revokes: user.revokes
+          }
+        });
+      }
+    } catch (err) {
+      // ignore logging errors
     }
   }
   saveUsers();
@@ -570,6 +664,10 @@ function renderStatusTable(status) {
     const planTd = document.createElement('td');
     planTd.textContent = member.plan || '';
     tr.appendChild(planTd);
+    // Mobile
+    const mobileTd = document.createElement('td');
+    mobileTd.textContent = member.mobile || '';
+    tr.appendChild(mobileTd);
     // Amount
     const amountTd = document.createElement('td');
     amountTd.textContent = member.amount || '';
@@ -695,7 +793,7 @@ function performSearch() {
   const query = document.getElementById('searchBar').value.trim().toLowerCase();
   dashboardState.searchQuery = query;
   // Reset page to 1 for all statuses on new search
-  ['Active', 'Hold', 'Cancelled', 'Deactivated'].forEach(status => {
+  ['Active','Hold','Cancelled','Deactivated'].forEach(status => {
     dashboardState[status].page = 1;
   });
   renderDashboard();
@@ -821,15 +919,55 @@ function saveMember() {
       return;
     }
   }
+  // Determine if creating new or updating existing and capture old member for diff
+  const isNewMember = (editIndex === null);
+  let oldMember = null;
+  if (!isNewMember && members[editIndex]) {
+    oldMember = { ...members[editIndex] };
+  }
   // Generate PDF using jsPDF
   generateMemberPDF(record).then(pdfDataUrl => {
     record.pdfUrl = pdfDataUrl;
-    if (editIndex === null) {
+    // Save record to members array
+    if (isNewMember) {
       members.push(record);
     } else {
       members[editIndex] = record;
     }
     saveMembers();
+    // Log the event
+    try {
+      const storedCurr = sessionStorage.getItem('currentUser');
+      const currObj = storedCurr ? JSON.parse(storedCurr) : {};
+      const actor = currObj.username || '';
+      if (isNewMember) {
+        logEvent({
+          actor: actor,
+          action: 'member.create',
+          targetType: 'member',
+          targetId: record.id,
+          summary: `Created member ${record.name} (${record.id})`,
+          meta: { status: record.status, plan: record.plan }
+        });
+      } else if (oldMember) {
+        const diff = {};
+        Object.keys(record).forEach(key => {
+          if (record[key] !== oldMember[key]) {
+            diff[key] = { before: oldMember[key], after: record[key] };
+          }
+        });
+        logEvent({
+          actor: actor,
+          action: 'member.update',
+          targetType: 'member',
+          targetId: record.id,
+          summary: `Updated ${record.name} (${record.id})`,
+          meta: { diff: diff, statusBefore: oldMember.status, statusAfter: record.status }
+        });
+      }
+    } catch (err) {
+      // ignore logging errors
+    }
     renderDashboard();
     clearMemberForm();
     alert('Member saved successfully.');
@@ -1045,4 +1183,323 @@ function clearManagementInfo() {
   // Reset hold field disabled state
   toggleHoldField();
 }
+
+/* ===================================================================== */
+/* Logs management functions                                             */
+/* ===================================================================== */
+
+// Retrieve logs array from localStorage
+function getLogs() {
+  try {
+    const saved = localStorage.getItem('apgm.logs.v1');
+    return saved ? JSON.parse(saved) : [];
+  } catch (err) {
+    return [];
+  }
+}
+
+// Save logs array to localStorage and prune to last 60 days and 5k entries
+function setLogs(logs) {
+  const now = Date.now();
+  // Only keep logs from the past 60 days
+  const cutoff = now - (60 * 24 * 60 * 60 * 1000);
+  // Filter logs within cutoff and cap to 5000 entries (keep newest)
+  const pruned = logs.filter(l => new Date(l.ts).getTime() >= cutoff).slice(-5000);
+  localStorage.setItem('apgm.logs.v1', JSON.stringify(pruned));
+}
+
+// Log an event; event is an object with actor, action, targetType, targetId, summary, meta
+function logEvent(event) {
+  if (!event) return;
+  const logs = getLogs();
+  const id = (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now()) + Math.random().toString().slice(2);
+  const entry = {
+    id: id,
+    ts: new Date().toISOString(),
+    actor: event.actor || '',
+    action: event.action || '',
+    targetType: event.targetType || '',
+    targetId: event.targetId || '',
+    summary: event.summary || '',
+    meta: event.meta || {}
+  };
+  logs.push(entry);
+  setLogs(logs);
+}
+
+// Render the logs table according to current logsState filters
+function renderLogs() {
+  const tbody = document.getElementById('logsBody');
+  const pagDiv = document.getElementById('logsPagination');
+  const actorSelect = document.getElementById('logActor');
+  const actionSelect = document.getElementById('logAction');
+  const emptyMsg = document.getElementById('logsEmpty');
+  if (!tbody || !pagDiv || !actorSelect || !actionSelect) return;
+  let logs = getLogs();
+  // Set default date range if not set (last 30 days)
+  if (!logsState.from || !logsState.to) {
+    const today = new Date();
+    const toStr = today.toISOString().split('T')[0];
+    // Default to last 60 days instead of 30 days so that recent activity is visible
+    const fromDate = new Date(today.getTime() - (60 * 24 * 60 * 60 * 1000));
+    const fromStr = fromDate.toISOString().split('T')[0];
+    if (!logsState.from) logsState.from = fromStr;
+    if (!logsState.to) logsState.to = toStr;
+    // Set input values
+    const fromInput = document.getElementById('logFrom');
+    const toInput = document.getElementById('logTo');
+    if (fromInput && !fromInput.value) fromInput.value = logsState.from;
+    if (toInput && !toInput.value) toInput.value = logsState.to;
+  }
+  // Populate actor and action select options from logs and users list
+  const uniqueActors = new Set();
+  const uniqueActions = new Set();
+  logs.forEach(l => {
+    if (l.actor) uniqueActors.add(l.actor);
+    if (l.action) uniqueActions.add(l.action);
+  });
+  // Also include all current usernames in actor list (useful when no logs yet)
+  users.forEach(u => uniqueActors.add(u.username));
+  // Clear and repopulate actor select
+  actorSelect.innerHTML = '';
+  const allActorOption = document.createElement('option');
+  allActorOption.value = '';
+  allActorOption.textContent = 'All Staff';
+  actorSelect.appendChild(allActorOption);
+  Array.from(uniqueActors).sort().forEach(actor => {
+    const opt = document.createElement('option');
+    opt.value = actor;
+    opt.textContent = actor;
+    actorSelect.appendChild(opt);
+  });
+  // Restore selected actor
+  actorSelect.value = logsState.actor || '';
+  // Populate action select
+  actionSelect.innerHTML = '';
+  const allActionOption = document.createElement('option');
+  allActionOption.value = '';
+  allActionOption.textContent = 'All Actions';
+  actionSelect.appendChild(allActionOption);
+  Array.from(uniqueActions).sort().forEach(act => {
+    const opt = document.createElement('option');
+    opt.value = act;
+    opt.textContent = act;
+    actionSelect.appendChild(opt);
+  });
+  actionSelect.value = logsState.action || '';
+  // Apply filters
+  const fromMs = logsState.from ? new Date(logsState.from).setHours(0,0,0,0) : 0;
+  const toMs = logsState.to ? new Date(logsState.to).setHours(23,59,59,999) : Date.now();
+  const actorFilter = logsState.actor || '';
+  const actionFilter = logsState.action || '';
+  const q = (logsState.search || '').toLowerCase();
+  let list = logs.filter(l => {
+    const tsMs = new Date(l.ts).getTime();
+    if (tsMs < fromMs || tsMs > toMs) return false;
+    if (actorFilter && l.actor !== actorFilter) return false;
+    if (actionFilter && l.action !== actionFilter) return false;
+    if (q) {
+      const summaryMatch = l.summary && l.summary.toLowerCase().includes(q);
+      const targetMatch = l.targetId && String(l.targetId).toLowerCase().includes(q);
+      const actionMatch = l.action && l.action.toLowerCase().includes(q);
+      const actorMatch = l.actor && l.actor.toLowerCase().includes(q);
+      return summaryMatch || targetMatch || actionMatch || actorMatch;
+    }
+    return true;
+  });
+  // Sort newest first
+  list.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  // Pagination
+  const total = list.length;
+  const totalPages = Math.max(1, Math.ceil(total / logsState.pageSize));
+  if (logsState.page > totalPages) logsState.page = totalPages;
+  const start = (logsState.page - 1) * logsState.pageSize;
+  const pageItems = list.slice(start, start + logsState.pageSize);
+  // Render rows
+  tbody.innerHTML = '';
+  if (pageItems.length === 0) {
+    emptyMsg.style.display = '';
+  } else {
+    emptyMsg.style.display = 'none';
+    pageItems.forEach(l => {
+      const tr = document.createElement('tr');
+      const timeTd = document.createElement('td');
+      timeTd.textContent = new Date(l.ts).toLocaleString();
+      const actorTd = document.createElement('td');
+      actorTd.textContent = l.actor;
+      const actionTd = document.createElement('td');
+      // Use chip to display action
+      const chip = document.createElement('span');
+      chip.className = 'action-chip ' + (l.action ? l.action.replace(/\./g, '-') : '');
+      chip.textContent = l.action;
+      actionTd.appendChild(chip);
+      const targetTd = document.createElement('td');
+      targetTd.textContent = l.targetType + (l.targetId ? ' / ' + l.targetId : '');
+      const summaryTd = document.createElement('td');
+      summaryTd.textContent = l.summary;
+      const viewTd = document.createElement('td');
+      const viewBtn = document.createElement('button');
+      viewBtn.textContent = 'View';
+      viewBtn.onclick = () => showLogDetail(l.id);
+      viewTd.appendChild(viewBtn);
+      tr.appendChild(timeTd);
+      tr.appendChild(actorTd);
+      tr.appendChild(actionTd);
+      tr.appendChild(targetTd);
+      tr.appendChild(summaryTd);
+      tr.appendChild(viewTd);
+      tr.onclick = () => showLogDetail(l.id);
+      tbody.appendChild(tr);
+    });
+  }
+  // Pagination controls
+  updateLogsPagination(total);
+}
+
+// Update logs pagination controls
+function updateLogsPagination(totalCount) {
+  const pag = document.getElementById('logsPagination');
+  if (!pag) return;
+  const totalPages = Math.max(1, Math.ceil(totalCount / logsState.pageSize));
+  pag.innerHTML = '';
+  // Helper to create button
+  function createBtn(label, disabled, onClick) {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    if (disabled) {
+      btn.classList.add('disabled');
+      btn.disabled = true;
+    } else {
+      btn.onclick = onClick;
+    }
+    return btn;
+  }
+  // First and Prev
+  pag.appendChild(createBtn('« First', logsState.page === 1, () => {
+    logsState.page = 1;
+    renderLogs();
+  }));
+  pag.appendChild(createBtn('‹ Prev', logsState.page === 1, () => {
+    logsState.page--;
+    renderLogs();
+  }));
+  // Page indicator
+  const span = document.createElement('span');
+  span.textContent = `Page ${logsState.page} of ${totalPages}`;
+  pag.appendChild(span);
+  // Next and Last
+  pag.appendChild(createBtn('Next ›', logsState.page === totalPages, () => {
+    logsState.page++;
+    renderLogs();
+  }));
+  pag.appendChild(createBtn('Last »', logsState.page === totalPages, () => {
+    logsState.page = totalPages;
+    renderLogs();
+  }));
+}
+
+// Apply filters from toolbar controls and re-render
+function setLogsFilter() {
+  const fromInput = document.getElementById('logFrom');
+  const toInput = document.getElementById('logTo');
+  const actorSelect = document.getElementById('logActor');
+  const actionSelect = document.getElementById('logAction');
+  const searchInput = document.getElementById('logSearch');
+  if (fromInput) logsState.from = fromInput.value;
+  if (toInput) logsState.to = toInput.value;
+  if (actorSelect) logsState.actor = actorSelect.value;
+  if (actionSelect) logsState.action = actionSelect.value;
+  if (searchInput) logsState.search = searchInput.value.trim();
+  logsState.page = 1;
+  renderLogs();
+}
+
+// Debounced filter for search to avoid excessive re-renders
+function debouncedSetLogsFilter() {
+  if (logsFilterTimeout) clearTimeout(logsFilterTimeout);
+  logsFilterTimeout = setTimeout(() => {
+    setLogsFilter();
+  }, 300);
+}
+
+// Show log detail modal
+function showLogDetail(logId) {
+  const modal = document.getElementById('logDetailModal');
+  const content = document.getElementById('logDetailContent');
+  if (!modal || !content) return;
+  const logs = getLogs();
+  const log = logs.find(l => l.id === logId);
+  if (!log) return;
+  // Build details HTML
+  let html = '';
+  html += `<p><strong>Time:</strong> ${new Date(log.ts).toLocaleString()}</p>`;
+  html += `<p><strong>Actor:</strong> ${log.actor}</p>`;
+  html += `<p><strong>Action:</strong> ${log.action}</p>`;
+  html += `<p><strong>Target:</strong> ${log.targetType}${log.targetId ? ' / ' + log.targetId : ''}</p>`;
+  html += `<p><strong>Summary:</strong> ${log.summary}</p>`;
+  if (log.meta) {
+    html += '<p><strong>Meta:</strong></p>';
+    html += `<pre>${JSON.stringify(log.meta, null, 2)}</pre>`;
+  }
+  content.innerHTML = html;
+  modal.style.display = 'flex';
+}
+
+function hideLogDetail() {
+  const modal = document.getElementById('logDetailModal');
+  if (modal) modal.style.display = 'none';
+}
+
+// Export current filtered logs to CSV
+function exportLogsCsv() {
+  // Build filtered list (without pagination)
+  let logs = getLogs();
+  const fromMs = logsState.from ? new Date(logsState.from).setHours(0,0,0,0) : 0;
+  const toMs = logsState.to ? new Date(logsState.to).setHours(23,59,59,999) : Date.now();
+  const actorFilter = logsState.actor || '';
+  const actionFilter = logsState.action || '';
+  const q = (logsState.search || '').toLowerCase();
+  let list = logs.filter(l => {
+    const tsMs = new Date(l.ts).getTime();
+    if (tsMs < fromMs || tsMs > toMs) return false;
+    if (actorFilter && l.actor !== actorFilter) return false;
+    if (actionFilter && l.action !== actionFilter) return false;
+    if (q) {
+      const summaryMatch = l.summary && l.summary.toLowerCase().includes(q);
+      const targetMatch = l.targetId && String(l.targetId).toLowerCase().includes(q);
+      const actionMatch = l.action && l.action.toLowerCase().includes(q);
+      const actorMatch = l.actor && l.actor.toLowerCase().includes(q);
+      return summaryMatch || targetMatch || actionMatch || actorMatch;
+    }
+    return true;
+  });
+  // Sort newest first
+  list.sort((a, b) => new Date(b.ts) - new Date(a.ts));
+  // Build CSV
+  let csv = 'Time,Actor,Action,Target,Summary\n';
+  list.forEach(l => {
+    const timeStr = new Date(l.ts).toLocaleString().replace(/,/g, '');
+    const target = l.targetType + (l.targetId ? ' / ' + l.targetId : '');
+    // Escape commas in summary
+    let summary = l.summary || '';
+    if (summary.includes(',')) summary = '"' + summary.replace(/"/g, '""') + '"';
+    csv += `${timeStr},${l.actor},${l.action},${target},${summary}\n`;
+  });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'admin_logs.csv';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// Expose logs functions globally for HTML inline handlers
+window.setLogsFilter = setLogsFilter;
+window.debouncedSetLogsFilter = debouncedSetLogsFilter;
+window.exportLogsCsv = exportLogsCsv;
+window.showLogDetail = showLogDetail;
+window.hideLogDetail = hideLogDetail;
 

@@ -54,6 +54,7 @@
                   <tr>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
@@ -75,6 +76,7 @@
                   <tr>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
@@ -96,6 +98,7 @@
                   <tr>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
@@ -117,6 +120,7 @@
                   <tr>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
+                    <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
@@ -220,7 +224,7 @@
                 </select>
               </label>
               <label>Hold Duration
-                <select id="mHold">
+                <select id="mHold" disabled>
                   <option value="">Select duration</option>
                   <option value="1 Month">1 Month</option>
                   <option value="2 Months">2 Months</option>
@@ -306,25 +310,35 @@
             <span class="close" onclick="hideUserForm()">&times;</span>
             <h3 id="userFormTitle">Add User</h3>
             <form id="userForm" onsubmit="event.preventDefault(); saveUser();">
-              <label>Username*
-                <input type="text" id="uUsername" required>
-              </label>
-              <label>Password* (leave blank to keep unchanged on edit)
-                <input type="password" id="uPassword">
-              </label>
-              <label>Confirm Password*
-                <input type="password" id="uConfirm">
-              </label>
-              <label>Role*
-                <select id="uRole" required onchange="renderPermissionToggles()">
-                  <option value="">Select role</option>
-                  <option value="admin">Admin</option>
-                  <option value="staff-basic">Staff Basic</option>
-                  <option value="staff-extended">Staff Extended</option>
-                </select>
-              </label>
+              <table class="form-table">
+                <tr>
+                  <th><label for="uUsername">Username*</label></th>
+                  <td><input type="text" id="uUsername" required></td>
+                </tr>
+                <tr>
+                  <th><label for="uPassword">Password*</label></th>
+                  <td>
+                    <input type="password" id="uPassword" placeholder="Leave blank to keep unchanged on edit">
+                  </td>
+                </tr>
+                <tr>
+                  <th><label for="uConfirm">Confirm Password*</label></th>
+                  <td><input type="password" id="uConfirm" placeholder="Repeat password"></td>
+                </tr>
+                <tr>
+                  <th><label for="uRole">Role*</label></th>
+                  <td>
+                    <select id="uRole" required onchange="renderPermissionToggles()">
+                      <option value="">Select role</option>
+                      <option value="admin">Admin</option>
+                      <option value="staff-basic">Staff Basic</option>
+                      <option value="staff-extended">Staff Extended</option>
+                    </select>
+                  </td>
+                </tr>
+              </table>
               <div id="permissionToggles" class="permission-toggles"></div>
-              <div class="button-row">
+              <div class="button-row" style="margin-top:1rem;">
                 <button type="submit">Save</button>
                 <button type="button" onclick="hideUserForm()">Cancel</button>
               </div>
@@ -342,7 +356,44 @@
       <!-- Admin Logs Section -->
       <section id="logsSection" class="section" style="display:none;">
         <h2>Admin Logs</h2>
-        <p>Coming soon: View staff activity logs for the last 90 days.</p>
+        <!-- Logs toolbar: date filters, actor/action filters, search and export -->
+        <div id="logsToolbar" class="logs-toolbar">
+          <input type="date" id="logFrom" onchange="setLogsFilter()">
+          <input type="date" id="logTo" onchange="setLogsFilter()">
+          <select id="logActor" onchange="setLogsFilter()">
+            <!-- Actor options populated dynamically -->
+          </select>
+          <select id="logAction" onchange="setLogsFilter()">
+            <!-- Action options populated dynamically -->
+          </select>
+          <input type="text" id="logSearch" placeholder="Search logs..." oninput="debouncedSetLogsFilter()">
+          <button type="button" onclick="exportLogsCsv()">Export CSV</button>
+        </div>
+        <div class="table-container">
+          <table id="logsTable">
+            <thead class="colored">
+              <tr>
+                <th>Time</th>
+                <th>Actor</th>
+                <th>Action</th>
+                <th>Target</th>
+                <th>Summary</th>
+                <th>View</th>
+              </tr>
+            </thead>
+            <tbody id="logsBody"></tbody>
+          </table>
+        </div>
+        <div id="logsPagination" class="pagination"></div>
+        <!-- Log detail modal -->
+        <div id="logDetailModal" class="modal" style="display:none;">
+          <div class="modal-content" style="max-width:600px;">
+            <span class="close" onclick="hideLogDetail()">&times;</span>
+            <h3>Log Details</h3>
+            <div id="logDetailContent"></div>
+          </div>
+        </div>
+        <p id="logsEmpty" style="display:none; margin-top:1rem;">No activity in this range.</p>
       </section>
     </main>
   </div>

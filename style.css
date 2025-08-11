@@ -139,6 +139,153 @@ body {
   overflow-y: auto;
 }
 
+/* Dashboard status grid and cards */
+/* Status grid now stacks tables vertically instead of wrapping horizontally */
+.status-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Each status table is wrapped in a card */
+/* Each status card should take full width when stacked vertically */
+.status-card {
+  background: #fff;
+  padding: 1rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  width: 100%;
+}
+
+.status-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: #007bff;
+}
+
+/* Status chips */
+.status-chip {
+  display: inline-block;
+  padding: 0.15rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  text-transform: capitalize;
+}
+
+/* Chip colors for each status */
+.status-active {
+  background: #dff7e1;
+  color: #2e7d32;
+}
+.status-hold {
+  background: #fff4e5;
+  color: #d18d00;
+}
+.status-cancelled {
+  background: #f5f5f5;
+  color: #666;
+}
+.status-deactivated {
+  background: #fdecea;
+  color: #c62828;
+}
+
+/* Pagination controls */
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+}
+.pagination button {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid #007bff;
+  background: #fff;
+  color: #007bff;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.pagination button.disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.pagination span {
+  margin: 0 0.25rem;
+}
+
+/* Logs toolbar styles */
+.logs-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+.logs-toolbar input[type="date"],
+.logs-toolbar select,
+.logs-toolbar input[type="text"] {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+}
+.logs-toolbar button {
+  padding: 0.25rem 0.75rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  font-size: 0.8rem;
+}
+.logs-toolbar button:hover {
+  background: #0056b3;
+}
+
+/* Colored table headers (used for logs and optionally other tables) */
+table thead.colored {
+  background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 100%);
+  color: #fff;
+}
+table thead.colored th {
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+/* Action chips for logs */
+.action-chip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-block;
+  white-space: nowrap;
+}
+.action-chip.member-create { background: #ecfdf5; color: #065f46; }
+.action-chip.member-update { background: #fff7ed; color: #9a3412; }
+.action-chip.user-create   { background: #eef2ff; color: #3730a3; }
+.action-chip.user-update   { background: #eff6ff; color: #1e40af; }
+.action-chip.auth-login    { background: #f0fdf4; color: #166534; }
+.action-chip.auth-logout   { background: #f8fafc; color: #334155; }
+
+/* Sortable headers with arrows */
+th.sortable {
+  cursor: pointer;
+  position: relative;
+  user-select: none;
+}
+th.sortable[data-sortdir="asc"]::after {
+  content: " ▲";
+  font-size: 0.7rem;
+}
+th.sortable[data-sortdir="desc"]::after {
+  content: " ▼";
+  font-size: 0.7rem;
+}
+
+
 .section {
   margin-bottom: 2rem;
 }
@@ -248,6 +395,79 @@ thead {
   background: #0056b3;
 }
 
+/* Staff Management styles */
+.primary-btn {
+  padding: 0.6rem 1rem;
+  background: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  margin-bottom: 1rem;
+}
+.primary-btn:hover {
+  background: #0056b3;
+}
+
+.table-container {
+  overflow-x: auto;
+  margin-bottom: 1rem;
+}
+
+/* Modal styles for add/edit user */
+.modal {
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.modal-content {
+  background-color: #fefefe;
+  padding: 1rem 1.5rem;
+  border: 1px solid #888;
+  border-radius: 8px;
+  width: 100%;
+  max-width: 400px;
+  position: relative;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+.close {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+}
+.close:hover, .close:focus {
+  color: #000;
+}
+
+.permission-toggles {
+  margin-top: 0.5rem;
+  margin-bottom: 0.5rem;
+  padding: 0.5rem;
+  background: #f8f9fa;
+  border-radius: 4px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.permission-toggles label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-size: 0.9rem;
+}
+
 /* Photo preview */
 .photo-preview {
   border: 1px dashed #ccc;
@@ -273,6 +493,64 @@ thead {
   }
   .main-content {
     order: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Row-wise table layout for the Add/Edit User modal                 */
+/* ------------------------------------------------------------------ */
+
+.form-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.form-table th {
+  /* Align labels to the right in desktop view */
+  text-align: right;
+  /* Allow long label text to wrap onto multiple lines rather than
+     overflowing the modal. A narrow base width forces the cell to
+     shrink to its content and permits wrapping when necessary. */
+  white-space: normal;
+  line-height: 1.25;
+  width: 1%;
+  padding: 0 0.75rem 0 0;
+  vertical-align: middle;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 120px;
+}
+
+.form-table td {
+  width: 100%;
+}
+
+.form-table input,
+.form-table select {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* Disable pointer events on disabled select elements to prevent opening
+   hold duration dropdown when status is not 'Hold'. Also reduce opacity
+   slightly to visually indicate disabled state. */
+select:disabled {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+@media (max-width: 640px) {
+  .form-table th {
+    display: block;
+    text-align: left;
+    padding: 0 0 0.25rem 0;
+  }
+  .form-table td {
+    display: block;
   }
 }
 
