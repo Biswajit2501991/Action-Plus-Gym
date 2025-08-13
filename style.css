@@ -554,3 +554,94 @@ select:disabled {
   }
 }
 
+/* ------------------------------------------------------------------ */
+/* Row-wise table layout for the Add/Update Members form              */
+/* ------------------------------------------------------------------ */
+
+/* The member-table mirrors the form-table styles to lay out labels
+   and inputs in two columns. Each <tr> contains a <th> for the label
+   and a <td> for the corresponding input, select or textarea. */
+.member-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.member-table th {
+  /* Align labels to the right on larger screens */
+  text-align: right;
+  white-space: normal;
+  line-height: 1.25;
+  width: 1%;
+  padding: 0 0.75rem 0 0;
+  vertical-align: middle;
+  font-weight: 600;
+  color: #0f172a;
+  min-width: 120px;
+}
+
+.member-table td {
+  width: 100%;
+}
+
+.member-table input,
+.member-table select,
+.member-table textarea {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  box-sizing: border-box;
+}
+
+/* When a field has been filled out, give it a subtle background
+   colour to provide a visual cue. This class is added via JS. */
+.filled-field {
+  background-color: #f4f7fb;
+}
+
+/* Responsive adjustments for member-table on very small screens */
+@media (max-width: 640px) {
+  .member-table th {
+    display: block;
+    text-align: left;
+    padding: 0 0 0.25rem 0;
+  }
+  .member-table td {
+    display: block;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Mobile view toggle styles                                          */
+/* ------------------------------------------------------------------ */
+
+/* When body has the 'mobile-view' class applied, hide the sidebar
+   completely and allow the main content to take the full width.  The
+   hamburger icon (admin-icon) will be used to toggle the sidebar if
+   needed. */
+.mobile-view .sidebar {
+  display: none;
+}
+
+.mobile-view .app-container {
+  flex-direction: column;
+}
+
+.mobile-view .main-content {
+  width: 100%;
+}
+
+.mobile-view .header-bar .admin-icon {
+  display: none;
+}
+
+.mobile-view .header-bar .search-container {
+  flex: 1;
+}
+
+.mobile-view .header-bar .header-icons {
+  flex: 0;
+}
+
+

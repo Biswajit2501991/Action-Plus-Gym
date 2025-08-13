@@ -140,128 +140,170 @@
       <section id="membersSection" class="section">
         <h2>Add/Update Members</h2>
         <form id="memberForm" onsubmit="event.preventDefault(); saveMember();">
-          <div class="form-grid">
-            <!-- Personal Information -->
-            <div class="form-box">
-              <h3>Personal Information
-                <button type="button" class="clear-section-btn" title="Clear personal information" onclick="clearPersonalInfo()">Clear</button>
-              </h3>
-              <label>Name*
-                <input type="text" id="mName" required>
-              </label>
-              <label>Date of Birth*
-                <input type="date" id="mDob" placeholder="dd/mm/yyyy" required>
-              </label>
-              <label>Gender*
-                <select id="mGender" required>
-                  <option value="">Select</option>
-                  <option value="Male">Male</option>
-                  <option value="Female">Female</option>
-                  <option value="Other">Other</option>
-                </select>
-              </label>
-              <label>Mobile Number (WhatsApp)*
-                <input type="text" id="mMobile" placeholder="Enter 10 digit number" required>
-              </label>
-              <label>Upload Photo
-                <input type="file" id="mPhoto" accept="image/*" onchange="previewMemberPhoto(event)">
-                <div class="photo-preview" onclick="document.getElementById('mPhoto').click()">
-                  <img id="mPhotoPreview" alt="Preview" style="display:none;">
-                  <span id="mPhotoPlaceholder">Click to upload photo</span>
-                </div>
-              </label>
-              <label>Gmail ID
-                <input type="email" id="mEmail">
-              </label>
-              <label>Address
-                <textarea id="mAddress"></textarea>
-              </label>
-            </div>
-            <!-- Management Information -->
-            <div class="form-box">
-              <h3>Management Information
-                <button type="button" class="clear-section-btn" title="Clear management information" onclick="clearManagementInfo()">Clear</button>
-              </h3>
-              <label>Form Number
-                <input type="text" id="mFormNumber">
-              </label>
-              <label>ID (Auto)
-                <input type="text" id="mId" readonly>
-              </label>
-              <label>Staff Name
-                <input type="text" id="mStaff" readonly>
-              </label>
-              <label>Membership Amount*
-                <input type="number" id="mAmount" required>
-              </label>
-              <label>Membership Plan*
-                <select id="mPlan" required>
-                  <option value="">Select Plan</option>
-                  <option value="Basic Plan">Basic Plan</option>
-                  <option value="Basic-Weekly-Plan">Basic-Weekly-Plan</option>
-                  <option value="Personal Trainer (PT) - RAJA">PT - RAJA</option>
-                  <option value="Yoga">Yoga</option>
-                  <option value="1 Week PT">1 Week PT</option>
-                  <option value="2 Week PT">2 Week PT</option>
-                  <option value="3 Months Basic">3 Months Basic</option>
-                  <option value="6 Months Basic">6 Months Basic</option>
-                  <option value="PT - Kaushik">PT - Kaushik</option>
-                  <option value="PT - Biswajit">PT - Biswajit</option>
-                </select>
-              </label>
-              <label>Joining Date*
-                <input type="date" id="mJoin" required>
-              </label>
-              <label>Billing Date*
-                <input type="date" id="mBill" required>
-              </label>
-              <label>Status*
-                <select id="mStatus" onchange="toggleHoldField()" required>
-                  <option value="Active">Active</option>
-                  <option value="Hold">Hold</option>
-                  <option value="Deactivated">Deactivated</option>
-                  <option value="Cancelled">Cancelled</option>
-                </select>
-              </label>
-              <label>Hold Duration
-                <select id="mHold" disabled>
-                  <option value="">Select duration</option>
-                  <option value="1 Month">1 Month</option>
-                  <option value="2 Months">2 Months</option>
-                  <option value="3 Months">3 Months</option>
-                  <option value="4 Months">4 Months</option>
-                  <option value="5 Months">5 Months</option>
-                  <option value="6 Months">6 Months</option>
-                  <option value="Rejoining 6-12 months">Rejoining 6-12 months</option>
-                  <option value="Readmission after 1 year">Readmission after 1 year</option>
-                </select>
-              </label>
-              <label>Payment Method*
-                <select id="mPaymentMethod" required>
-                  <option value="">Select method</option>
-                  <option value="Cash">Cash</option>
-                  <option value="Google Pay">Google Pay</option>
-                  <option value="PhonePe">PhonePe</option>
-                  <option value="Cash+Online">Cash+Online</option>
-                </select>
-              </label>
-              <label>Payment Month
-                <select id="mPayMonth"></select>
-              </label>
-            </div>
-            <!-- Other Information -->
-            <div class="form-box">
-              <h3>Other Information</h3>
-              <label>Remark*
-                <textarea id="mRemark" required></textarea>
-              </label>
-              <div class="button-row">
-                <button type="submit">Save</button>
-                <button type="button" onclick="updateMember()">Update</button>
-                <button type="button" onclick="clearMemberForm()">Clear</button>
-                <button type="button" onclick="showOverview()">Next</button>
-              </div>
-            </div>
+          <!-- Personal Information -->
+          <div class="form-box">
+            <h3>Personal Information
+              <button type="button" class="clear-section-btn" title="Clear personal information" onclick="clearPersonalInfo()">Clear</button>
+            </h3>
+            <table class="member-table">
+              <tr>
+                <th><label for="mName">Name*</label></th>
+                <td><input type="text" id="mName" required></td>
+              </tr>
+              <tr>
+                <th><label for="mDob">Date of Birth*</label></th>
+                <td><input type="date" id="mDob" placeholder="dd/mm/yyyy" required></td>
+              </tr>
+              <tr>
+                <th><label for="mGender">Gender*</label></th>
+                <td>
+                  <select id="mGender" required>
+                    <option value="">Select</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mMobile">Mobile Number (WhatsApp)*</label></th>
+                <td><input type="text" id="mMobile" placeholder="Enter 10 digit number" required></td>
+              </tr>
+              <tr>
+                <th><label for="mPhoto">Upload Photo</label></th>
+                <td>
+                  <input type="file" id="mPhoto" accept="image/*" onchange="previewMemberPhoto(event)">
+                  <div class="photo-preview" onclick="document.getElementById('mPhoto').click()">
+                    <img id="mPhotoPreview" alt="Preview" style="display:none;">
+                    <span id="mPhotoPlaceholder">Click to upload photo</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mEmail">Gmail ID</label></th>
+                <td><input type="email" id="mEmail"></td>
+              </tr>
+              <tr>
+                <th><label for="mAddress">Address</label></th>
+                <td><textarea id="mAddress"></textarea></td>
+              </tr>
+            </table>
+          </div>
+          <!-- Management Information -->
+          <div class="form-box">
+            <h3>Management Information
+              <button type="button" class="clear-section-btn" title="Clear management information" onclick="clearManagementInfo()">Clear</button>
+            </h3>
+            <table class="member-table">
+              <tr>
+                <th><label for="mFormNumber">Form Number</label></th>
+                <td><input type="text" id="mFormNumber"></td>
+              </tr>
+              <tr>
+                <th><label>ID (Auto)</label></th>
+                <td><input type="text" id="mId" readonly></td>
+              </tr>
+              <tr>
+                <th><label for="mStaff">Staff Name</label></th>
+                <td><input type="text" id="mStaff" readonly></td>
+              </tr>
+              <tr>
+                <th><label for="mAmount">Membership Amount*</label></th>
+                <!-- Only positive integers are allowed; step=1 prevents decimals -->
+                <td><input type="number" id="mAmount" min="1" step="1" required></td>
+              </tr>
+              <tr>
+                <th><label for="mPlan">Membership Plan*</label></th>
+                <td>
+                  <select id="mPlan" required>
+                    <option value="">Select Plan</option>
+                    <option value="Basic Plan">Basic Plan</option>
+                    <option value="Basic-Weekly-Plan">Basic-Weekly-Plan</option>
+                    <option value="Personal Trainer (PT) - RAJA">PT - RAJA</option>
+                    <option value="Yoga">Yoga</option>
+                    <option value="1 Week PT">1 Week PT</option>
+                    <option value="2 Week PT">2 Week PT</option>
+                    <option value="3 Months Basic">3 Months Basic</option>
+                    <option value="6 Months Basic">6 Months Basic</option>
+                    <option value="PT - Kaushik">PT - Kaushik</option>
+                    <option value="PT - Biswajit">PT - Biswajit</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mJoin">Joining Date*</label></th>
+                <td><input type="date" id="mJoin" required></td>
+              </tr>
+              <tr>
+                <th><label for="mBill">Billing Date*</label></th>
+                <td><input type="date" id="mBill" required></td>
+              </tr>
+              <tr>
+                <th><label for="mStatus">Status*</label></th>
+                <td>
+                  <select id="mStatus" onchange="toggleHoldField()" required>
+                    <option value="Active">Active</option>
+                    <option value="Hold">Hold</option>
+                    <option value="Deactivated">Deactivated</option>
+                    <option value="Cancelled">Cancelled</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mHold">Hold Duration</label></th>
+                <td>
+                  <select id="mHold" disabled>
+                    <option value="">Select duration</option>
+                    <option value="1 Month">1 Month</option>
+                    <option value="2 Months">2 Months</option>
+                    <option value="3 Months">3 Months</option>
+                    <option value="4 Months">4 Months</option>
+                    <option value="5 Months">5 Months</option>
+                    <option value="6 Months">6 Months</option>
+                    <option value="Rejoining 6-12 months">Rejoining 6-12 months</option>
+                    <option value="Readmission after 1 year">Readmission after 1 year</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mPaymentMethod">Payment Method*</label></th>
+                <td>
+                  <select id="mPaymentMethod" required>
+                    <option value="">Select method</option>
+                    <option value="Cash">Cash</option>
+                    <option value="Google Pay">Google Pay</option>
+                    <option value="PhonePe">PhonePe</option>
+                    <option value="Cash+Online">Cash+Online</option>
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <th><label for="mPayMonth">Payment Month</label></th>
+                <td><select id="mPayMonth"></select></td>
+              </tr>
+            </table>
+          </div>
+          <!-- Other Information -->
+          <div class="form-box">
+            <h3>Other Information</h3>
+            <table class="member-table">
+              <tr>
+                <th><label for="mRemark">Remark*</label></th>
+                <td><textarea id="mRemark" required></textarea></td>
+              </tr>
+              <tr>
+                <td colspan="2">
+                  <div class="button-row">
+                    <!-- Set flag to indicate saving as a new member. This
+                         allows saving a copy when editing an existing record. -->
+                    <button type="submit" onclick="saveAsNew = true;">Save</button>
+                    <button type="button" onclick="updateMember()">Update</button>
+                    <button type="button" onclick="clearMemberForm()">Clear</button>
+                    <button type="button" onclick="showOverview()">Next</button>
+                  </div>
+                </td>
+              </tr>
+            </table>
           </div>
         </form>
         <!-- Member Overview -->
@@ -281,7 +323,29 @@
       <!-- Finance Section -->
       <section id="financeSection" class="section" style="display:none;">
         <h2>Finance</h2>
-        <p>Coming soon: View and filter payment collections by payment type and date range.</p>
+        <!-- Date range filters -->
+        <div id="financeFilters" class="finance-filters" style="margin-bottom:1rem;">
+          <label>From:
+            <input type="date" id="finFrom" onchange="renderFinance()">
+          </label>
+          <label style="margin-left:0.5rem;">To:
+            <input type="date" id="finTo" onchange="renderFinance()">
+          </label>
+        </div>
+        <!-- Summary table for payment methods -->
+        <div class="table-container">
+          <table id="financeTable">
+            <thead class="colored">
+              <tr>
+                <th>Payment Method</th>
+                <th>Total Amount</th>
+              </tr>
+            </thead>
+            <tbody id="financeBody"></tbody>
+            <tfoot id="financeFoot"></tfoot>
+          </table>
+        </div>
+        <p id="financeEmpty" style="display:none; margin-top:1rem;">No payments in this range.</p>
       </section>
 
       <!-- Staff Section -->

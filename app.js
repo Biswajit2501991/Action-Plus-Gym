@@ -34,6 +34,12 @@ let editingUserIndex = null;
 let members = [];
 let editIndex = null; // Tracks index of member being edited
 
+// Flag used to determine if a member should be saved as a new record even
+// when editing an existing one. This is set by the Save button's click
+// handler and reset after saving. When true, saveMember() will push a
+// new record rather than updating the existing record at editIndex.
+let saveAsNew = false;
+
 // ------------------------------
 // Dashboard state for segmented views
 // ------------------------------
@@ -91,6 +97,10 @@ document.addEventListener('DOMContentLoaded', () => {
     loadMembers();
     // Populate dynamic elements
     populatePaymentMonths();
+    // Attach field highlighting handlers to member form inputs
+    setupFieldHighlights();
+    // Set default finance date range (last 30 days) on initial load
+    setDefaultFinanceRange();
     // Initially render staff table (if admin navigates to staff)
     renderStaffTable();
     // Render dashboard
@@ -196,7 +206,10 @@ function toggleSidebar() {
 }
 
 function toggleMobileView() {
-  document.body.classList.toggle('mobile');
+  // Toggle the mobile-view class on the body to switch between desktop
+  // and mobile layouts. CSS rules in style.css will adjust the UI
+  // accordingly (hide sidebar, stack layout, etc.).
+  document.body.classList.toggle('mobile-view');
 }
 
 /* Navigation between sections */
@@ -239,6 +252,8 @@ function showSection(section) {
     case 'finance':
       document.getElementById('financeSection').style.display = '';
       navItems[3].classList.add('active');
+      // Render finance summary each time we enter the finance section
+      renderFinance();
       break;
     case 'staff':
       document.getElementById('staffSection').style.display = '';
@@ -338,6 +353,12 @@ function renderStaffTable() {
     editBtn.textContent = 'Edit';
     editBtn.onclick = () => showUserForm(idx);
     actionsTd.appendChild(editBtn);
+    // Delete button (only visible to admin)
+    const delBtn = document.createElement('button');
+    delBtn.textContent = 'Delete';
+    delBtn.style.marginLeft = '0.5rem';
+    delBtn.onclick = () => deleteUser(idx);
+    actionsTd.appendChild(delBtn);
     tr.appendChild(unameTd);
     tr.appendChild(roleTd);
     tr.appendChild(actionsTd);
@@ -560,6 +581,53 @@ function saveUser() {
   saveUsers();
   renderStaffTable();
   hideUserForm();
+}
+
+/* Delete a user from the staff list after confirmation. If the user
+   being deleted is the currently logged in user, sign them out. */
+function deleteUser(index) {
+  if (index === null || index === undefined || index < 0 || index >= users.length) return;
+  const user = users[index];
+  if (!user) return;
+  const confirmed = confirm(`Are you sure you want to delete the user "${user.username}"?`);
+  if (!confirmed) return;
+  // Prevent deleting the last remaining admin
+  const admins = users.filter(u => u.role === 'admin');
+  if (user.role === 'admin' && admins.length <= 1) {
+    alert('Cannot delete the last remaining admin.');
+    return;
+  }
+  // Remove user from array
+  users.splice(index, 1);
+  saveUsers();
+  renderStaffTable();
+  // If deleting currently logged in user, force logout
+  try {
+    const currStr = sessionStorage.getItem('currentUser');
+    const currObj = currStr ? JSON.parse(currStr) : {};
+    if (currObj && currObj.username === user.username) {
+      alert('Your account has been deleted. Logging out now.');
+      logout();
+    }
+  } catch (err) {
+    // ignore
+  }
+  // Log deletion event
+  try {
+    const currStr2 = sessionStorage.getItem('currentUser');
+    const currObj2 = currStr2 ? JSON.parse(currStr2) : {};
+    const actor = currObj2.username || '';
+    logEvent({
+      actor: actor,
+      action: 'user.delete',
+      targetType: 'user',
+      targetId: user.username,
+      summary: `Deleted user ${user.username}`,
+      meta: { role: user.role }
+    });
+  } catch (err) {
+    // ignore
+  }
 }
 
 /* Populate Payment Month dropdown with current and next year months */
@@ -811,6 +879,32 @@ function toggleHoldField() {
   }
 }
 
+/* Apply light background to fields that contain values. This provides a
+   visual cue that the field has been filled. It is called on
+   DOMContentLoaded to attach handlers, and whenever a member is loaded
+   into the form. */
+function setupFieldHighlights() {
+  const fields = document.querySelectorAll('#memberForm input, #memberForm select, #memberForm textarea');
+  fields.forEach(el => {
+    // Highlight initial values
+    updateFieldHighlight(el);
+    // Listen for changes or input events
+    el.addEventListener('input', () => updateFieldHighlight(el));
+    el.addEventListener('change', () => updateFieldHighlight(el));
+  });
+}
+
+function updateFieldHighlight(el) {
+  // Skip file inputs from highlighting
+  if (el.type === 'file') return;
+  const value = (el.value || '').trim();
+  if (value) {
+    el.classList.add('filled-field');
+  } else {
+    el.classList.remove('filled-field');
+  }
+}
+
 /* Preview uploaded member photo */
 function previewMemberPhoto(event) {
   const file = event.target.files[0];
@@ -862,6 +956,33 @@ function saveMember() {
     alert('Please fill all mandatory fields.');
     return;
   }
+  // Ensure membership amount is a positive integer
+  const amtNum = parseFloat(amount);
+  if (isNaN(amtNum) || amtNum <= 0) {
+    alert('Membership amount must be a positive number.');
+    return;
+  }
+  // When status is Hold, hold duration is required
+  if (status === 'Hold' && !holdDuration) {
+    alert('Please select a hold duration when status is Hold.');
+    return;
+  }
+
+  // If updating an existing member (not saving as new) and the billing date
+  // is today or in the past, prompt the user for confirmation before
+  // proceeding. This helps prevent accidental updates with outdated
+  // billing information.
+  if (!saveAsNew && editIndex !== null) {
+    const billDt = billingDate ? new Date(billingDate) : null;
+    const today = new Date();
+    // Normalize to start of day for comparison
+    if (billDt && billDt.setHours(0,0,0,0) <= today.setHours(0,0,0,0)) {
+      const proceed = confirm('The billing date is today or earlier. Do you wish to continue updating this member?');
+      if (!proceed) {
+        return;
+      }
+    }
+  }
   // Normalize phone (store as entered with country code +91 if 10 digits)
   const digits = mobile.replace(/\D/g, '');
   let mobileNo;
@@ -875,9 +996,11 @@ function saveMember() {
     alert('Invalid mobile number format.');
     return;
   }
-  // Generate ID if not present
+  // Determine if saving as new (even when editing) or updating existing record
+  const isNewMember = saveAsNew || (editIndex === null);
+  // Generate a new ID when creating new or copying existing; when updating, keep existing ID
   let idVal = idAuto;
-  if (!idVal) {
+  if (isNewMember || !idVal) {
     const year = new Date().getFullYear().toString().slice(-2);
     const num = formNumber || (members.length + 1).toString();
     idVal = `APG-${num}/${year}`;
@@ -906,8 +1029,8 @@ function saveMember() {
     // PDF will be generated below
     pdfUrl: ''
   };
-  // Duplicate checks when creating new
-  if (editIndex === null) {
+  // Duplicate checks when creating new or saving as new
+  if (isNewMember) {
     const dupForm = members.find(m => m.formNumber && m.formNumber === formNumber);
     const dupMobile = members.find(m => m.mobile && m.mobile === mobileNo);
     if (dupForm) {
@@ -919,15 +1042,17 @@ function saveMember() {
       return;
     }
   }
-  // Determine if creating new or updating existing and capture old member for diff
-  const isNewMember = (editIndex === null);
+  // Capture old member for diff when updating
   let oldMember = null;
   if (!isNewMember && members[editIndex]) {
     oldMember = { ...members[editIndex] };
   }
-  // Generate PDF using jsPDF
-  generateMemberPDF(record).then(pdfDataUrl => {
-    record.pdfUrl = pdfDataUrl;
+  // Generate PDF using jsPDF. If PDF generation fails (e.g. jsPDF not loaded),
+  // proceed to save the record anyway with an empty pdfUrl. Without this
+  // wrapper, a failure in generateMemberPDF() would prevent the member
+  // from being saved and the user would see no feedback.
+  const finishSave = (pdfData) => {
+    record.pdfUrl = pdfData || '';
     // Save record to members array
     if (isNewMember) {
       members.push(record);
@@ -968,10 +1093,28 @@ function saveMember() {
     } catch (err) {
       // ignore logging errors
     }
+    // After saving, reset saveAsNew and editIndex if a copy was created
+    if (isNewMember) {
+      editIndex = null;
+    }
+    // Reset the saveAsNew flag for subsequent operations
+    saveAsNew = false;
     renderDashboard();
     clearMemberForm();
     alert('Member saved successfully.');
-  });
+  };
+  try {
+    // Attempt to generate PDF. If jsPDF is unavailable, this will throw.
+    generateMemberPDF(record).then(pdfDataUrl => {
+      finishSave(pdfDataUrl);
+    }).catch(err => {
+      console.error('PDF generation failed:', err);
+      finishSave('');
+    });
+  } catch (err) {
+    console.error('PDF generation error:', err);
+    finishSave('');
+  }
 }
 
 /* Generate a simple PDF summary for the member using jsPDF */
@@ -1050,6 +1193,8 @@ function loadMemberIntoForm(index) {
     placeholder.style.display = 'block';
     document.getElementById('mPhoto').dataset.base64 = '';
   }
+  // Update field highlights after populating values
+  setupFieldHighlights();
 }
 
 function updateMember() {
@@ -1057,6 +1202,8 @@ function updateMember() {
     alert('Please select a member from the dashboard to update.');
     return;
   }
+  // Ensure we are updating the existing record, not saving a copy
+  saveAsNew = false;
   saveMember();
 }
 
@@ -1085,6 +1232,8 @@ function clearMemberForm() {
   // Reset payment method
   const pmSelect = document.getElementById('mPaymentMethod');
   if (pmSelect) pmSelect.value = '';
+  // Update field highlights after clearing
+  setupFieldHighlights();
 }
 
 /* Member Overview (Preview) */
@@ -1354,6 +1503,98 @@ function renderLogs() {
   }
   // Pagination controls
   updateLogsPagination(total);
+}
+
+/* ------------------------------ */
+/* Finance page rendering           */
+/* ------------------------------ */
+
+/* Renders the finance summary table based on payment method totals
+   and the selected date range. The date range is determined by the
+   inputs with IDs 'finFrom' and 'finTo'. Totals are computed on
+   billingDate values of members. */
+function renderFinance() {
+  const fromInput = document.getElementById('finFrom');
+  const toInput = document.getElementById('finTo');
+  const bodyEl = document.getElementById('financeBody');
+  const footEl = document.getElementById('financeFoot');
+  const emptyEl = document.getElementById('financeEmpty');
+  if (!bodyEl || !footEl) return;
+  // Parse date range
+  let from = fromInput && fromInput.value ? new Date(fromInput.value) : null;
+  let to = toInput && toInput.value ? new Date(toInput.value) : null;
+  // If only one bound is provided, set the other to min/max
+  if (from) {
+    from.setHours(0, 0, 0, 0);
+  }
+  if (to) {
+    to.setHours(23, 59, 59, 999);
+  }
+  // Filter members within date range (using billingDate). Convert
+  // billingDate strings to Date objects; if missing, skip record.
+  const filtered = members.filter(m => {
+    if (!m.billingDate) return false;
+    const d = new Date(m.billingDate);
+    if (isNaN(d)) return false;
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+    return true;
+  });
+  // Compute totals per payment method
+  const totals = {};
+  let grandTotal = 0;
+  filtered.forEach(m => {
+    const pm = m.paymentMethod || 'Unknown';
+    const amt = parseFloat(m.amount) || 0;
+    if (!totals[pm]) totals[pm] = 0;
+    totals[pm] += amt;
+    grandTotal += amt;
+  });
+  // Clear table body and foot
+  bodyEl.innerHTML = '';
+  footEl.innerHTML = '';
+  const methodNames = Object.keys(totals);
+  // If no payments in range, show empty message and exit
+  if (methodNames.length === 0) {
+    emptyEl.style.display = '';
+    return;
+  } else {
+    emptyEl.style.display = 'none';
+  }
+  methodNames.forEach(pm => {
+    const tr = document.createElement('tr');
+    const methodTd = document.createElement('td');
+    methodTd.textContent = pm;
+    const amountTd = document.createElement('td');
+    amountTd.textContent = totals[pm].toFixed(2);
+    tr.appendChild(methodTd);
+    tr.appendChild(amountTd);
+    bodyEl.appendChild(tr);
+  });
+  // Add a footer row with the grand total
+  const footTr = document.createElement('tr');
+  const totalLabelTd = document.createElement('td');
+  totalLabelTd.textContent = 'Total';
+  totalLabelTd.style.fontWeight = 'bold';
+  const totalAmtTd = document.createElement('td');
+  totalAmtTd.textContent = grandTotal.toFixed(2);
+  totalAmtTd.style.fontWeight = 'bold';
+  footTr.appendChild(totalLabelTd);
+  footTr.appendChild(totalAmtTd);
+  footEl.appendChild(footTr);
+}
+
+/* Set default date range for finance filters to cover the last 30 days. */
+function setDefaultFinanceRange() {
+  const fromInput = document.getElementById('finFrom');
+  const toInput = document.getElementById('finTo');
+  if (!fromInput || !toInput) return;
+  const now = new Date();
+  const fromDate = new Date(now);
+  fromDate.setDate(now.getDate() - 30);
+  // Set valueAsDate to ensure proper formatting in the date input
+  fromInput.valueAsDate = fromDate;
+  toInput.valueAsDate = now;
 }
 
 // Update logs pagination controls
