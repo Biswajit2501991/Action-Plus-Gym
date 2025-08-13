@@ -34,11 +34,365 @@ let editingUserIndex = null;
 let members = [];
 let editIndex = null; // Tracks index of member being edited
 
+// ------------------------------
+// Dropdown settings management
+// ------------------------------
+/*
+ * Dropdown values for gender, status, payment methods, membership plans and
+ * hold durations are stored in a single settings object. These values can
+ * be modified via the Settings page. The settings object is persisted
+ * under the key 'apgm.settings.v1'. Each property holds an array of
+ * strings. When the application starts, default values are seeded if no
+ * settings exist.
+ */
+let settings = {};
+
+function loadSettings() {
+  try {
+    const saved = localStorage.getItem('apgm.settings.v1');
+    if (saved) {
+      settings = JSON.parse(saved);
+    } else {
+      settings = {};
+    }
+    // Define default values for each settings category. These will be used
+    // if the stored value is missing or of the wrong type. This ensures
+    // backwards compatibility with older formats.
+    const defaultSettings = {
+      gender: ['Male', 'Female', 'Other'],
+      status: ['Active', 'Hold', 'Deactivated', 'Cancelled'],
+      paymentMethod: ['Cash', 'Google Pay', 'PhonePe', 'Cash+Online'],
+      membershipPlan: [
+        'Basic Plan',
+        'Basic-Weekly-Plan',
+        'PT - RAJA',
+        'Yoga',
+        '1 Week PT',
+        '2 Week PT',
+        '3 Months Basic',
+        '6 Months Basic',
+        'PT - Kaushik',
+        'PT - Biswajit'
+      ],
+      holdDuration: [
+        '1 Month',
+        '2 Months',
+        '3 Months',
+        '4 Months',
+        '5 Months',
+        '6 Months',
+        'Rejoining 6-12 months',
+        'Readmission after 1 year'
+      ],
+      templates: {
+        gmail: '',
+        welcome: '',
+        reminder: '',
+        success: '',
+        fine: '',
+        hold: '',
+        deactivate: ''
+      }
+    };
+    // Merge defaults into settings; if property missing or incorrect type, assign default
+    Object.keys(defaultSettings).forEach(key => {
+      const defVal = defaultSettings[key];
+      const savedVal = settings[key];
+      if (Array.isArray(defVal)) {
+        if (!Array.isArray(savedVal)) {
+          settings[key] = [...defVal];
+        }
+      } else if (typeof defVal === 'object') {
+        if (typeof savedVal !== 'object' || savedVal === null) {
+          settings[key] = { ...defVal };
+        } else {
+          // Ensure each template key exists
+          Object.keys(defVal).forEach(tKey => {
+            if (typeof settings[key][tKey] !== 'string') {
+              settings[key][tKey] = '';
+            }
+          });
+        }
+      }
+    });
+    saveSettings();
+  } catch (err) {
+    // Reset to defaults on parse error
+    settings = {
+      gender: ['Male', 'Female', 'Other'],
+      status: ['Active', 'Hold', 'Deactivated', 'Cancelled'],
+      paymentMethod: ['Cash', 'Google Pay', 'PhonePe', 'Cash+Online'],
+      membershipPlan: [
+        'Basic Plan',
+        'Basic-Weekly-Plan',
+        'PT - RAJA',
+        'Yoga',
+        '1 Week PT',
+        '2 Week PT',
+        '3 Months Basic',
+        '6 Months Basic',
+        'PT - Kaushik',
+        'PT - Biswajit'
+      ],
+      holdDuration: [
+        '1 Month',
+        '2 Months',
+        '3 Months',
+        '4 Months',
+        '5 Months',
+        '6 Months',
+        'Rejoining 6-12 months',
+        'Readmission after 1 year'
+      ],
+      templates: {
+        gmail: '',
+        welcome: '',
+        reminder: '',
+        success: '',
+        fine: '',
+        hold: '',
+        deactivate: ''
+      }
+    };
+    saveSettings();
+  }
+}
+
+function saveSettings() {
+  localStorage.setItem('apgm.settings.v1', JSON.stringify(settings));
+}
+
+/* Populate dropdown fields in the member form from settings. This is called
+ * after loading settings and whenever settings change. */
+function populateDropdowns() {
+  // Gender
+  const genderSelect = document.getElementById('mGender');
+  if (genderSelect) {
+    genderSelect.innerHTML = '<option value="">Select</option>';
+    settings.gender.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      genderSelect.appendChild(opt);
+    });
+  }
+  // Status
+  const statusSelect = document.getElementById('mStatus');
+  if (statusSelect) {
+    statusSelect.innerHTML = '';
+    settings.status.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      statusSelect.appendChild(opt);
+    });
+  }
+  // Membership plan
+  const planSelect = document.getElementById('mPlan');
+  if (planSelect) {
+    planSelect.innerHTML = '<option value="">Select Plan</option>';
+    settings.membershipPlan.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      planSelect.appendChild(opt);
+    });
+  }
+  // Hold duration
+  const holdSelect = document.getElementById('mHold');
+  if (holdSelect) {
+    holdSelect.innerHTML = '<option value="">Select duration</option>';
+    settings.holdDuration.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      holdSelect.appendChild(opt);
+    });
+    // Initially disabled; the toggleHoldField will enable when needed
+    if (document.getElementById('mStatus').value !== 'Hold') {
+      holdSelect.disabled = true;
+    }
+  }
+  // Payment method
+  const paymentSelect = document.getElementById('mPaymentMethod');
+  if (paymentSelect) {
+    paymentSelect.innerHTML = '<option value="">Select method</option>';
+    settings.paymentMethod.forEach(val => {
+      const opt = document.createElement('option');
+      opt.value = val;
+      opt.textContent = val;
+      paymentSelect.appendChild(opt);
+    });
+  }
+}
+
+/* Track unsaved changes on the member form. Attach listeners to all
+ * editable fields so that any change sets the unsavedChanges flag to true.
+ */
+function setupUnsavedTracking() {
+  const form = document.getElementById('memberForm');
+  if (!form) return;
+  const fields = form.querySelectorAll('input, select, textarea');
+  fields.forEach(field => {
+    // ignore read-only fields
+    if (field.readOnly) return;
+    field.addEventListener('input', () => { unsavedChanges = true; });
+    field.addEventListener('change', () => { unsavedChanges = true; });
+  });
+}
+
+/* Render Settings page using cards with chips for each dropdown category and
+ * editable templates for messages. This function is called whenever the
+ * settings page is shown or when settings are updated. */
+function renderSettings() {
+  const container = document.getElementById('settingsContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  // Define categories to show as chips. Each has a key in the settings object
+  const categories = [
+    { key: 'gender', label: 'Gender', placeholder: 'Enter new gender' },
+    { key: 'status', label: 'Status', placeholder: 'Enter new status' },
+    { key: 'paymentMethod', label: 'Payment Method', placeholder: 'Enter new payment method' },
+    { key: 'membershipPlan', label: 'Membership Plan', placeholder: 'Enter new plan' },
+    { key: 'holdDuration', label: 'Hold Duration', placeholder: 'Enter new duration' }
+  ];
+  // Create a card for each dropdown category
+  categories.forEach(cat => {
+    const card = document.createElement('div');
+    card.className = 'settings-category';
+    // Heading
+    const h3 = document.createElement('h3');
+    h3.textContent = cat.label;
+    card.appendChild(h3);
+    // Chip container
+    const chipsDiv = document.createElement('div');
+    settings[cat.key].forEach((val, idx) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip';
+      chip.textContent = val;
+      // Delete icon inside chip
+      const del = document.createElement('span');
+      del.className = 'chip-delete';
+      del.innerHTML = '\u2716'; // multiplication sign as delete
+      del.title = 'Remove';
+      del.onclick = () => {
+        settings[cat.key].splice(idx, 1);
+        saveSettings();
+        populateDropdowns();
+        renderSettings();
+        showToast('Value deleted');
+      };
+      chip.appendChild(del);
+      chipsDiv.appendChild(chip);
+    });
+    card.appendChild(chipsDiv);
+    // Add new value input and button
+    const addDiv = document.createElement('div');
+    addDiv.style.marginTop = '0.5rem';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = cat.placeholder;
+    const addBtn = document.createElement('button');
+    addBtn.textContent = 'Add';
+    addBtn.onclick = () => {
+      const newVal = input.value.trim();
+      if (newVal && !settings[cat.key].includes(newVal)) {
+        settings[cat.key].push(newVal);
+        saveSettings();
+        populateDropdowns();
+        renderSettings();
+        input.value = '';
+        showToast('Value added');
+      }
+    };
+    addDiv.appendChild(input);
+    addDiv.appendChild(addBtn);
+    card.appendChild(addDiv);
+    container.appendChild(card);
+  });
+  // Render message templates as separate cards
+  const templateLabels = {
+    gmail: 'Gmail',
+    welcome: 'Welcome Message',
+    reminder: 'Reminder Message',
+    success: 'Success SMS',
+    fine: 'Fine SMS',
+    hold: 'Hold SMS',
+    deactivate: 'Deactivate SMS'
+  };
+  Object.keys(templateLabels).forEach(key => {
+    const tCard = document.createElement('div');
+    tCard.className = 'template-card';
+    const title = document.createElement('h3');
+    title.textContent = templateLabels[key];
+    tCard.appendChild(title);
+    const textarea = document.createElement('textarea');
+    textarea.value = settings.templates[key] || '';
+    textarea.placeholder = `Enter ${templateLabels[key].toLowerCase()}`;
+    // Save value on blur
+    textarea.onchange = () => {
+      settings.templates[key] = textarea.value;
+      saveSettings();
+      showToast('Template saved');
+    };
+    tCard.appendChild(textarea);
+    container.appendChild(tCard);
+  });
+}
+
+/* Display a non-blocking toast notification. Messages are shown in the
+ * top-right corner and automatically disappear after a few seconds. */
+function showToast(msg, type = 'info') {
+  let container = document.getElementById('toastContainer');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toastContainer';
+    container.className = 'toast-container';
+    document.body.appendChild(container);
+  }
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (type === 'error') toast.classList.add('error');
+  toast.textContent = msg;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.remove();
+    if (container.childElementCount === 0) {
+      container.remove();
+    }
+  }, 3500);
+}
+
+/* Handler for close icon on non-dashboard pages. Navigates back to the
+ * dashboard. If unsaved changes handling is added in the future, this
+ * function can prompt the user before discarding changes. */
+function handleClosePage() {
+  // If there are unsaved changes in the member form, ask for confirmation
+  if (unsavedChanges) {
+    const ok = confirm('You have unsaved changes. Leave this page and return to Dashboard?');
+    if (!ok) {
+      return;
+    }
+  }
+  // Reset the form and unsaved flag when leaving
+  if (document.getElementById('memberForm')) {
+    clearMemberForm();
+  }
+  unsavedChanges = false;
+  showSection('dashboard');
+}
+
 // Flag used to determine if a member should be saved as a new record even
 // when editing an existing one. This is set by the Save button's click
 // handler and reset after saving. When true, saveMember() will push a
 // new record rather than updating the existing record at editIndex.
 let saveAsNew = false;
+
+// Flag indicating whether there are unsaved changes in the member form. When
+// true and the user attempts to navigate away via the close icon, we will
+// prompt for confirmation. This is set whenever any editable field in the
+// member form changes and reset after saving or clearing the form.
+let unsavedChanges = false;
 
 // ------------------------------
 // Dashboard state for segmented views
@@ -95,10 +449,32 @@ document.addEventListener('DOMContentLoaded', () => {
     checkAuthentication();
     // Load members from storage
     loadMembers();
+    // Load dropdown settings and populate selects
+    loadSettings();
+    populateDropdowns();
     // Populate dynamic elements
     populatePaymentMonths();
     // Attach field highlighting handlers to member form inputs
     setupFieldHighlights();
+    // Setup unsaved change tracking on form fields
+    setupUnsavedTracking();
+    // Automatically compute Payment By when billing date changes
+    const billInput = document.getElementById('mBill');
+    const payByInput = document.getElementById('mPaymentBy');
+    if (billInput && payByInput) {
+      billInput.addEventListener('change', () => {
+        const val = billInput.value;
+        if (!val) {
+          payByInput.value = '';
+        } else {
+          const d = new Date(val);
+          if (!isNaN(d)) {
+            d.setDate(d.getDate() + 7);
+            payByInput.value = d.toISOString().split('T')[0];
+          }
+        }
+      });
+    }
     // Set default finance date range (last 30 days) on initial load
     setDefaultFinanceRange();
     // Initially render staff table (if admin navigates to staff)
@@ -244,6 +620,10 @@ function showSection(section) {
     case 'members':
       document.getElementById('membersSection').style.display = '';
       navItems[1].classList.add('active');
+      // ensure dropdown values are up to date when entering members section
+      populateDropdowns();
+      // reattach unsaved tracking on form fields
+      setupUnsavedTracking();
       break;
     case 'sms':
       document.getElementById('smsSection').style.display = '';
@@ -264,6 +644,8 @@ function showSection(section) {
     case 'settings':
       document.getElementById('settingsSection').style.display = '';
       navItems[5].classList.add('active');
+      // When navigating to settings, render the settings UI
+      renderSettings();
       break;
     case 'logs':
       document.getElementById('logsSection').style.display = '';
@@ -628,6 +1010,8 @@ function deleteUser(index) {
   } catch (err) {
     // ignore
   }
+  // Show deletion toast
+  showToast(`Staff ${user.username} deleted successfully.`);
 }
 
 /* Populate Payment Month dropdown with current and next year months */
@@ -676,13 +1060,14 @@ function renderStatusTable(status) {
 
   // Derive the dataset for this status
   let dataset = members.filter(m => m.status === status);
-  // Apply search filter across name (case-insensitive) and digits of mobile
+  // Apply search filter across name and mobile only
   const search = dashboardState.searchQuery.trim().toLowerCase();
   const searchDigits = search.replace(/\D/g, '');
   if (search) {
     dataset = dataset.filter(m => {
       const nameMatch = m.name && m.name.toLowerCase().includes(search);
-      const mobileMatch = m.mobile && m.mobile.replace(/\D/g, '').includes(searchDigits);
+      const mobileDigits = m.mobile ? m.mobile.replace(/\D/g, '') : '';
+      const mobileMatch = searchDigits && mobileDigits.includes(searchDigits);
       return nameMatch || mobileMatch;
     });
   }
@@ -724,6 +1109,10 @@ function renderStatusTable(status) {
   tbody.innerHTML = '';
   paginated.forEach(member => {
     const tr = document.createElement('tr');
+    // ID
+    const idTd = document.createElement('td');
+    idTd.textContent = member.id || '';
+    tr.appendChild(idTd);
     // Name
     const nameTd = document.createElement('td');
     nameTd.textContent = member.name || '';
@@ -748,6 +1137,10 @@ function renderStatusTable(status) {
     const billTd = document.createElement('td');
     billTd.textContent = member.billingDate || '';
     tr.appendChild(billTd);
+    // Payment By
+    const payByTd = document.createElement('td');
+    payByTd.textContent = member.paymentBy || '';
+    tr.appendChild(payByTd);
     // Status with colored chip
     const statusTd = document.createElement('td');
     const chip = document.createElement('span');
@@ -1020,6 +1413,7 @@ function saveMember() {
     plan,
     joinDate,
     billingDate,
+    paymentBy: '',
     status,
     holdDuration,
     paymentMethod,
@@ -1029,6 +1423,21 @@ function saveMember() {
     // PDF will be generated below
     pdfUrl: ''
   };
+
+  // Compute paymentBy as 7 days after billingDate
+  if (billingDate) {
+    try {
+      const d = new Date(billingDate);
+      // Add 7 days
+      d.setDate(d.getDate() + 7);
+      record.paymentBy = d.toISOString().split('T')[0];
+      // Update UI field immediately
+      const paymentByInput = document.getElementById('mPaymentBy');
+      if (paymentByInput) paymentByInput.value = record.paymentBy;
+    } catch (err) {
+      record.paymentBy = '';
+    }
+  }
   // Duplicate checks when creating new or saving as new
   if (isNewMember) {
     const dupForm = members.find(m => m.formNumber && m.formNumber === formNumber);
@@ -1093,6 +1502,9 @@ function saveMember() {
     } catch (err) {
       // ignore logging errors
     }
+    // Reset unsaved changes and reattach tracking after a successful save
+    unsavedChanges = false;
+    setupUnsavedTracking();
     // After saving, reset saveAsNew and editIndex if a copy was created
     if (isNewMember) {
       editIndex = null;
@@ -1101,7 +1513,12 @@ function saveMember() {
     saveAsNew = false;
     renderDashboard();
     clearMemberForm();
-    alert('Member saved successfully.');
+    // Show success toast indicating whether created or updated
+    if (isNewMember) {
+      showToast(`Member ${record.name} created successfully.`);
+    } else {
+      showToast(`Member ${record.name} updated successfully.`);
+    }
   };
   try {
     // Attempt to generate PDF. If jsPDF is unavailable, this will throw.
@@ -1144,6 +1561,7 @@ async function generateMemberPDF(member) {
     ['Hold Duration', member.holdDuration],
     ['Payment Method', member.paymentMethod],
     ['Payment Month', member.payMonth],
+    ['Payment By', member.paymentBy],
     ['Remark', member.remark]
   ];
   fields.forEach(item => {
@@ -1176,6 +1594,8 @@ function loadMemberIntoForm(index) {
   toggleHoldField();
   document.getElementById('mHold').value = member.holdDuration || '';
   document.getElementById('mPayMonth').value = member.payMonth || '';
+  const payByInput = document.getElementById('mPaymentBy');
+  if (payByInput) payByInput.value = member.paymentBy || '';
   // Set payment method
   const pmSelect = document.getElementById('mPaymentMethod');
   if (pmSelect) pmSelect.value = member.paymentMethod || '';
@@ -1195,6 +1615,9 @@ function loadMemberIntoForm(index) {
   }
   // Update field highlights after populating values
   setupFieldHighlights();
+  // Reset unsaved flag and reattach tracking on editable fields
+  unsavedChanges = false;
+  setupUnsavedTracking();
 }
 
 function updateMember() {
@@ -1234,6 +1657,9 @@ function clearMemberForm() {
   if (pmSelect) pmSelect.value = '';
   // Update field highlights after clearing
   setupFieldHighlights();
+  // Reset unsaved flag and reattach tracking
+  unsavedChanges = false;
+  setupUnsavedTracking();
 }
 
 /* Member Overview (Preview) */

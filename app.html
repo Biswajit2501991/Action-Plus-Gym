@@ -52,12 +52,15 @@
               <table id="activeTable">
                 <thead>
                   <tr>
+                    <!-- Dashboard table columns: ID, Name, Plan, Mobile, Amount, Join Date, Billing Date, Payment By, Status and Actions.  -->
+                    <th data-key="id" class="sortable">ID</th>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
                     <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="paymentBy" class="sortable">Payment By</th>
                     <th data-key="status" class="sortable">Status</th>
                     <th>Action</th>
                   </tr>
@@ -74,12 +77,14 @@
               <table id="holdTable">
                 <thead>
                   <tr>
+                    <th data-key="id" class="sortable">ID</th>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
                     <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="paymentBy" class="sortable">Payment By</th>
                     <th data-key="status" class="sortable">Status</th>
                     <th>Action</th>
                   </tr>
@@ -96,12 +101,14 @@
               <table id="cancelledTable">
                 <thead>
                   <tr>
+                    <th data-key="id" class="sortable">ID</th>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
                     <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="paymentBy" class="sortable">Payment By</th>
                     <th data-key="status" class="sortable">Status</th>
                     <th>Action</th>
                   </tr>
@@ -118,12 +125,14 @@
               <table id="deactivatedTable">
                 <thead>
                   <tr>
+                    <th data-key="id" class="sortable">ID</th>
                     <th data-key="name" class="sortable">Name</th>
                     <th data-key="plan" class="sortable">Plan</th>
                     <th data-key="mobile" class="sortable">Mobile</th>
                     <th data-key="amount" class="sortable">Amount</th>
                     <th data-key="joinDate" class="sortable">Join Date</th>
                     <th data-key="billingDate" class="sortable">Billing Date</th>
+                    <th data-key="paymentBy" class="sortable">Payment By</th>
                     <th data-key="status" class="sortable">Status</th>
                     <th>Action</th>
                   </tr>
@@ -138,7 +147,7 @@
 
       <!-- Add/Update Members Section -->
       <section id="membersSection" class="section">
-        <h2>Add/Update Members</h2>
+        <h2>Add/Update Members <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
         <form id="memberForm" onsubmit="event.preventDefault(); saveMember();">
           <!-- Personal Information -->
           <div class="form-box">
@@ -281,6 +290,10 @@
                 <th><label for="mPayMonth">Payment Month</label></th>
                 <td><select id="mPayMonth"></select></td>
               </tr>
+              <tr>
+                <th><label for="mPaymentBy">Payment By</label></th>
+                <td><input type="date" id="mPaymentBy" readonly></td>
+              </tr>
             </table>
           </div>
           <!-- Other Information -->
@@ -316,13 +329,13 @@
 
       <!-- WhatsApp SMS Section -->
       <section id="smsSection" class="section" style="display:none;">
-        <h2>WhatsApp SMS</h2>
+        <h2>WhatsApp SMS <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
         <p>Coming soon: Send success, reminder, hold or deactivation messages based on date range.</p>
       </section>
 
       <!-- Finance Section -->
       <section id="financeSection" class="section" style="display:none;">
-        <h2>Finance</h2>
+        <h2>Finance <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
         <!-- Date range filters -->
         <div id="financeFilters" class="finance-filters" style="margin-bottom:1rem;">
           <label>From:
@@ -350,7 +363,7 @@
 
       <!-- Staff Section -->
       <section id="staffSection" class="section" style="display:none;">
-        <h2>Staff Management</h2>
+        <h2>Staff Management <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
         <!-- Button to add a new user -->
         <button type="button" id="addUserBtn" onclick="showUserForm(null)" class="primary-btn">Add User</button>
         <!-- Container for the staff users table -->
@@ -413,13 +426,14 @@
 
       <!-- Settings Section -->
       <section id="settingsSection" class="section" style="display:none;">
-        <h2>Settings</h2>
-        <p>Coming soon: Configure system settings and dropdown values.</p>
+        <h2>Settings <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
+        <!-- Settings container will be populated dynamically via app.js -->
+        <div id="settingsContainer" class="settings-container"></div>
       </section>
 
       <!-- Admin Logs Section -->
       <section id="logsSection" class="section" style="display:none;">
-        <h2>Admin Logs</h2>
+        <h2>Admin Logs <span class="close-icon" onclick="handleClosePage()">&times;</span></h2>
         <!-- Logs toolbar: date filters, actor/action filters, search and export -->
         <div id="logsToolbar" class="logs-toolbar">
           <input type="date" id="logFrom" onchange="setLogsFilter()">

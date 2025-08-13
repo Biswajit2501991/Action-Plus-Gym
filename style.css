@@ -644,4 +644,144 @@ select:disabled {
   flex: 0;
 }
 
+/* --- Settings page styles --- */
+.settings-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.settings-category {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  flex: 1 1 280px;
+}
+
+.settings-category h3 {
+  margin-top: 0;
+}
+
+.settings-category ul {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.5rem 0;
+}
+
+.settings-category ul li {
+  display: flex;
+  align-items: center;
+  margin-bottom: 0.25rem;
+}
+
+.settings-category ul li button {
+  margin-left: auto;
+  background: #f44336;
+  color: white;
+  border: none;
+  border-radius: 3px;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+}
+
+.settings-category div input[type="text"] {
+  padding: 0.3rem;
+  border: 1px solid #ccc;
+  border-radius: 3px;
+  width: 70%;
+  margin-right: 0.5rem;
+}
+
+.settings-category div button {
+  padding: 0.3rem 0.6rem;
+  border: none;
+  background: #007bff;
+  color: #fff;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.settings-category div button:hover {
+  background: #0056b3;
+}
+
+/* --- Toast notifications --- */
+.toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+}
+
+.toast {
+  background: #28a745;
+  color: #fff;
+  padding: 0.5rem 0.8rem;
+  border-radius: 3px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  margin-bottom: 0.5rem;
+  animation: fadein 0.3s;
+}
+
+.toast.error {
+  background: #dc3545;
+}
+
+@keyframes fadein {
+  from { opacity: 0; transform: translateY(-5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* Close icon used on non-dashboard pages */
+.close-icon {
+  font-size: 1.2rem;
+  cursor: pointer;
+  margin-left: 0.5rem;
+  color: #888;
+}
+.close-icon:hover {
+  color: #333;
+}
+
+/* Chip styles for settings values */
+.chip {
+  display: inline-flex;
+  align-items: center;
+  background: #f1f1f1;
+  border-radius: 20px;
+  padding: 0.25rem 0.6rem;
+  margin: 0.15rem;
+  font-size: 0.9rem;
+}
+.chip .chip-delete {
+  margin-left: 0.3rem;
+  cursor: pointer;
+  color: #a00;
+}
+.chip .chip-delete:hover {
+  color: #e00;
+}
+
+/* Template cards for message templates */
+.template-card {
+  background: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 1rem;
+  margin-top: 1rem;
+}
+.template-card h3 {
+  margin-top: 0;
+}
+.template-card textarea {
+  width: 100%;
+  min-height: 80px;
+  padding: 0.5rem;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  resize: vertical;
+}
+
 
