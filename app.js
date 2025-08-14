@@ -17,13 +17,17 @@
  * revokes.
  */
 const rolePermissions = {
-  'admin': ['dashboard', 'members', 'sms', 'finance', 'staff', 'settings', 'logs'],
+  // Admins can access all sections including the new Customer Master Data
+  'admin': ['dashboard', 'members', 'sms', 'finance', 'staff', 'settings', 'logs', 'customerData'],
+  // Basic staff have limited access
   'staff-basic': ['dashboard', 'members', 'sms'],
+  // Extended staff can also manage staff list
   'staff-extended': ['dashboard', 'members', 'sms', 'staff']
 };
 
 // A flat list of all possible permissions (used for generating toggle UI)
-const allPermissions = ['dashboard', 'members', 'sms', 'finance', 'staff', 'settings', 'logs'];
+// Include new section in the global list of possible permissions
+const allPermissions = ['dashboard', 'members', 'sms', 'finance', 'staff', 'settings', 'logs', 'customerData'];
 
 // In-memory users list loaded from localStorage on startup
 let users = [];
@@ -248,6 +252,13 @@ function renderSettings() {
   const container = document.getElementById('settingsContainer');
   if (!container) return;
   container.innerHTML = '';
+  // Create separate containers for value fields and message templates
+  const fieldsContainer = document.createElement('div');
+  fieldsContainer.className = 'settings-fields';
+  const templatesContainer = document.createElement('div');
+  templatesContainer.className = 'settings-templates';
+  container.appendChild(fieldsContainer);
+  container.appendChild(templatesContainer);
   // Define categories to show as chips. Each has a key in the settings object
   const categories = [
     { key: 'gender', label: 'Gender', placeholder: 'Enter new gender' },
@@ -256,7 +267,7 @@ function renderSettings() {
     { key: 'membershipPlan', label: 'Membership Plan', placeholder: 'Enter new plan' },
     { key: 'holdDuration', label: 'Hold Duration', placeholder: 'Enter new duration' }
   ];
-  // Create a card for each dropdown category
+  // Build cards for each dropdown category
   categories.forEach(cat => {
     const card = document.createElement('div');
     card.className = 'settings-category';
@@ -273,14 +284,26 @@ function renderSettings() {
       // Delete icon inside chip
       const del = document.createElement('span');
       del.className = 'chip-delete';
-      del.innerHTML = '\u2716'; // multiplication sign as delete
+      del.innerHTML = '\u2716';
       del.title = 'Remove';
       del.onclick = () => {
+        // Before deleting a value, determine how many members currently use
+        // it.  If the value is in use, we block deletion and show an
+        // error toast; otherwise we remove the value and show an
+        // informational (warning) toast.  Deleting a value simply
+        // removes it from the list of selectable options; existing
+        // member records retain the value and will display it as
+        // deprecated on their forms.
+        const count = countMembersUsingValue(cat.key, val);
+        if (count > 0) {
+          showToast(`Cannot delete. In use by ${count} member${count === 1 ? '' : 's'}.`, 'error');
+          return;
+        }
         settings[cat.key].splice(idx, 1);
         saveSettings();
         populateDropdowns();
         renderSettings();
-        showToast('Value deleted');
+        showToast('Value deleted.', 'warning');
       };
       chip.appendChild(del);
       chipsDiv.appendChild(chip);
@@ -302,15 +325,15 @@ function renderSettings() {
         populateDropdowns();
         renderSettings();
         input.value = '';
-        showToast('Value added');
+        showToast('Value added', 'success');
       }
     };
     addDiv.appendChild(input);
     addDiv.appendChild(addBtn);
     card.appendChild(addDiv);
-    container.appendChild(card);
+    fieldsContainer.appendChild(card);
   });
-  // Render message templates as separate cards
+  // Message template labels
   const templateLabels = {
     gmail: 'Gmail',
     welcome: 'Welcome Message',
@@ -336,7 +359,7 @@ function renderSettings() {
       showToast('Template saved');
     };
     tCard.appendChild(textarea);
-    container.appendChild(tCard);
+    templatesContainer.appendChild(tCard);
   });
 }
 
@@ -352,7 +375,17 @@ function showToast(msg, type = 'info') {
   }
   const toast = document.createElement('div');
   toast.className = 'toast';
-  if (type === 'error') toast.classList.add('error');
+  // Apply type-specific classes for styling.  The default class
+  // represents success (green) so we explicitly add 'success'
+  // when requested; 'warning' (orange) and 'error' (red) are also
+  // supported.  Any other type falls back to green.
+  if (type === 'error') {
+    toast.classList.add('error');
+  } else if (type === 'warning') {
+    toast.classList.add('warning');
+  } else if (type === 'success') {
+    toast.classList.add('success');
+  }
   toast.textContent = msg;
   container.appendChild(toast);
   setTimeout(() => {
@@ -393,6 +426,63 @@ let saveAsNew = false;
 // prompt for confirmation. This is set whenever any editable field in the
 // member form changes and reset after saving or clearing the form.
 let unsavedChanges = false;
+
+/*
+ * Compute the Payment By date given a Billing Date.  Payment is due 7
+ * days after the billing date.  Returns an ISO date string (YYYY-MM-DD)
+ * or an empty string if the billing date is invalid or empty.
+ */
+function computePaymentBy(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d)) return '';
+  d.setDate(d.getDate() + 7);
+  return d.toISOString().split('T')[0];
+}
+
+/*
+ * Count how many member records currently use a given value.  The
+ * categoryKey corresponds to properties on member records: for
+ * 'gender', 'status', 'paymentMethod', 'membershipPlan', and 'holdDuration'.
+ * Values can be labels as stored in the settings arrays.  The count
+ * includes all members loaded in the members array.  This is used to
+ * prevent deletion of values that are still in use by existing
+ * members.
+ */
+function countMembersUsingValue(categoryKey, value) {
+  if (!value) return 0;
+  const keyMap = {
+    gender: 'gender',
+    status: 'status',
+    paymentMethod: 'paymentMethod',
+    membershipPlan: 'plan',
+    holdDuration: 'holdDuration'
+  };
+  const prop = keyMap[categoryKey];
+  if (!prop) return 0;
+  return members.filter(m => m[prop] === value).length;
+}
+
+/*
+ * Ensure that if a member record references a value that has since been
+ * removed from the settings list, the select element still offers a
+ * disabled option so the value can be displayed.  The value will
+ * appear with a " (deprecated)" suffix and cannot be selected for new
+ * records.  This helps preserve data integrity when values are
+ * deleted from settings after being used.
+ */
+function ensureDeprecatedOption(selectEl, value) {
+  if (!selectEl || !value) return;
+  const exists = Array.from(selectEl.options).some(opt => opt.value === value);
+  if (!exists) {
+    const opt = document.createElement('option');
+    opt.value = value;
+    opt.textContent = `${value} (deprecated)`;
+    opt.disabled = true;
+    // Insert at the top so it is visible when opening the dropdown
+    selectEl.insertBefore(opt, selectEl.firstChild);
+  }
+}
 
 // ------------------------------
 // Dashboard state for segmented views
@@ -463,16 +553,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const payByInput = document.getElementById('mPaymentBy');
     if (billInput && payByInput) {
       billInput.addEventListener('change', () => {
-        const val = billInput.value;
-        if (!val) {
-          payByInput.value = '';
-        } else {
-          const d = new Date(val);
-          if (!isNaN(d)) {
-            d.setDate(d.getDate() + 7);
-            payByInput.value = d.toISOString().split('T')[0];
-          }
-        }
+        payByInput.value = computePaymentBy(billInput.value);
       });
     }
     // Set default finance date range (last 30 days) on initial load
@@ -544,7 +625,10 @@ function adjustRoleBasedUI() {
   const perms = userObj.effectivePermissions || [];
   const navItems = document.querySelectorAll('.sidebar li');
   // Map nav items by index to permission names
-  const navPerms = ['dashboard','members','sms','finance','staff','settings','logs'];
+  // Map each sidebar item to the corresponding permission.  Add the new
+  // customerData permission at the end so the 8th li is shown only for
+  // users with that permission.
+  const navPerms = ['dashboard','members','sms','finance','staff','settings','logs','customerData'];
   navItems.forEach((li, idx) => {
     const perm = navPerms[idx];
     if (!perms.includes(perm)) {
@@ -653,14 +737,37 @@ function showSection(section) {
       // Render logs each time we enter the logs section
       renderLogs();
       break;
+    case 'customerData':
+      document.getElementById('customerDataSection').style.display = '';
+      // Highlight the newly added nav item (index 7)
+      if (navItems[7]) navItems[7].classList.add('active');
+      // Render the customer master data table
+      renderCustomerData();
+      break;
   }
 }
 
 /* Load members from localStorage */
 function loadMembers() {
+  /*
+   * Load members from persistent storage.  To support long‑term retention of
+   * all fields (including gender, plan, payment method, etc.) we store
+   * member records under the new key `apgm.customerData.v1`.  If that key
+   * does not exist we fall back to the legacy `members` key.  After
+   * loading from the legacy key we immediately migrate the data to the
+   * new key to ensure future reads are consistent.  Any parse errors
+   * result in an empty array to prevent the app from crashing.
+   */
   try {
-    const saved = localStorage.getItem('members');
-    members = saved ? JSON.parse(saved) : [];
+    const savedNew = localStorage.getItem('apgm.customerData.v1');
+    if (savedNew) {
+      members = JSON.parse(savedNew);
+    } else {
+      const savedOld = localStorage.getItem('members');
+      members = savedOld ? JSON.parse(savedOld) : [];
+      // Immediately migrate to the new key so future loads use it
+      localStorage.setItem('apgm.customerData.v1', JSON.stringify(members));
+    }
   } catch (err) {
     members = [];
   }
@@ -668,7 +775,18 @@ function loadMembers() {
 
 /* Persist members to localStorage */
 function saveMembers() {
-  localStorage.setItem('members', JSON.stringify(members));
+  /*
+   * Persist the canonical members array to both the legacy `members` key
+   * and the new `apgm.customerData.v1` key.  Writing to the legacy key
+   * maintains compatibility for older installations, while the new key
+   * explicitly reflects the purpose of the store.
+   */
+  try {
+    localStorage.setItem('apgm.customerData.v1', JSON.stringify(members));
+    localStorage.setItem('members', JSON.stringify(members));
+  } catch (err) {
+    // If persistence fails, silently ignore to avoid disrupting the UI
+  }
 }
 
 /* ------------------------------ */
@@ -1137,9 +1255,10 @@ function renderStatusTable(status) {
     const billTd = document.createElement('td');
     billTd.textContent = member.billingDate || '';
     tr.appendChild(billTd);
-    // Payment By
+    // Payment By (greyed out)
     const payByTd = document.createElement('td');
     payByTd.textContent = member.paymentBy || '';
+    payByTd.classList.add('payment-by-cell');
     tr.appendChild(payByTd);
     // Status with colored chip
     const statusTd = document.createElement('td');
@@ -1154,16 +1273,19 @@ function renderStatusTable(status) {
     viewBtn.textContent = 'View';
     viewBtn.onclick = () => {
       const idx = members.indexOf(member);
-      loadMemberIntoForm(idx);
+      // First navigate to members section so dropdown options are populated
       showSection('members');
+      // Then load the record into the form
+      loadMemberIntoForm(idx);
     };
     actionTd.appendChild(viewBtn);
     tr.appendChild(actionTd);
     // Row click also triggers view
     tr.onclick = () => {
       const idx = members.indexOf(member);
-      loadMemberIntoForm(idx);
+      // Navigate first, then load record
       showSection('members');
+      loadMemberIntoForm(idx);
     };
     tbody.appendChild(tr);
   });
@@ -1254,6 +1376,19 @@ function performSearch() {
   const query = document.getElementById('searchBar').value.trim().toLowerCase();
   dashboardState.searchQuery = query;
   // Reset page to 1 for all statuses on new search
+  ['Active','Hold','Cancelled','Deactivated'].forEach(status => {
+    dashboardState[status].page = 1;
+  });
+  renderDashboard();
+}
+
+/* Clear the global search input and reset dashboard search */
+function clearSearch() {
+  const searchInput = document.getElementById('searchBar');
+  if (searchInput) {
+    searchInput.value = '';
+  }
+  dashboardState.searchQuery = '';
   ['Active','Hold','Cancelled','Deactivated'].forEach(status => {
     dashboardState[status].page = 1;
   });
@@ -1579,7 +1714,10 @@ function loadMemberIntoForm(index) {
   editIndex = index;
   document.getElementById('mName').value = member.name || '';
   document.getElementById('mDob').value = member.dob || '';
-  document.getElementById('mGender').value = member.gender || '';
+  const genderSelect = document.getElementById('mGender');
+  // Ensure deprecated gender values remain selectable (read‑only)
+  ensureDeprecatedOption(genderSelect, member.gender);
+  genderSelect.value = member.gender || '';
   document.getElementById('mMobile').value = member.mobile ? member.mobile.replace(/\D/g, '').slice(-10) : '';
   document.getElementById('mEmail').value = member.email || '';
   document.getElementById('mAddress').value = member.address || '';
@@ -1587,18 +1725,29 @@ function loadMemberIntoForm(index) {
   document.getElementById('mId').value = member.id || '';
   document.getElementById('mStaff').value = member.staff || '';
   document.getElementById('mAmount').value = member.amount || '';
-  document.getElementById('mPlan').value = member.plan || '';
+  const planSelect = document.getElementById('mPlan');
+  ensureDeprecatedOption(planSelect, member.plan);
+  planSelect.value = member.plan || '';
   document.getElementById('mJoin').value = member.joinDate || '';
   document.getElementById('mBill').value = member.billingDate || '';
-  document.getElementById('mStatus').value = member.status || '';
+  const statusSelect = document.getElementById('mStatus');
+  ensureDeprecatedOption(statusSelect, member.status);
+  statusSelect.value = member.status || '';
   toggleHoldField();
-  document.getElementById('mHold').value = member.holdDuration || '';
+  const holdSelect = document.getElementById('mHold');
+  if (holdSelect) {
+    ensureDeprecatedOption(holdSelect, member.holdDuration);
+    holdSelect.value = member.holdDuration || '';
+  }
   document.getElementById('mPayMonth').value = member.payMonth || '';
   const payByInput = document.getElementById('mPaymentBy');
   if (payByInput) payByInput.value = member.paymentBy || '';
   // Set payment method
   const pmSelect = document.getElementById('mPaymentMethod');
-  if (pmSelect) pmSelect.value = member.paymentMethod || '';
+  if (pmSelect) {
+    ensureDeprecatedOption(pmSelect, member.paymentMethod);
+    pmSelect.value = member.paymentMethod || '';
+  }
   document.getElementById('mRemark').value = member.remark || '';
   // Load photo
   const previewEl = document.getElementById('mPhotoPreview');
@@ -1667,10 +1816,9 @@ function showOverview() {
   const overview = document.getElementById('overviewSection');
   const content = document.getElementById('overviewContent');
   if (!overview || !content) return;
-  // Build HTML representation of form data
-  const name = document.getElementById('mName').value;
+  // Read values from form
   const fields = {
-    'Name': name,
+    'Name': document.getElementById('mName').value,
     'DOB': document.getElementById('mDob').value,
     'Gender': document.getElementById('mGender').value,
     'Mobile': document.getElementById('mMobile').value,
@@ -1685,17 +1833,24 @@ function showOverview() {
     'Billing Date': document.getElementById('mBill').value,
     'Status': document.getElementById('mStatus').value,
     'Hold Duration': document.getElementById('mHold').value,
+    'Payment Method': document.getElementById('mPaymentMethod').value,
     'Payment Month': document.getElementById('mPayMonth').value,
     'Remark': document.getElementById('mRemark').value
   };
-  let html = '';
-  for (const key in fields) {
-    html += `<p><strong>${key}:</strong> ${fields[key]}</p>`;
+  // Compute derived Payment By and add to fields
+  fields['Payment By'] = computePaymentBy(fields['Billing Date']);
+  // Generate HTML summary; show em dash for empty values
+  let html = '<table class="overview-table">';
+  for (const key of Object.keys(fields)) {
+    let val = fields[key];
+    if (!val) val = '—';
+    html += `<tr><th>${key}</th><td>${val}</td></tr>`;
   }
-  // Show photo if uploaded
+  html += '</table>';
+  // Photo preview
   const photoData = document.getElementById('mPhoto').dataset.base64;
   if (photoData) {
-    html += `<p><strong>Photo:</strong><br><img src="${photoData}" style="max-height:150px;"/></p>`;
+    html += `<div class="overview-photo"><strong>Photo:</strong><br><img src="${photoData}" style="max-height:150px;" /></div>`;
   }
   content.innerHTML = html;
   overview.style.display = 'block';
@@ -1706,9 +1861,43 @@ function hideOverview() {
   if (overview) overview.style.display = 'none';
 }
 
+/*
+ * Finalize saving a member record after reviewing the overview.  This
+ * function sets the saveAsNew flag based on the provided parameter,
+ * hides the overview panel and then triggers the normal save process.
+ */
+function finalizeMemberSave(asNew = false) {
+  saveAsNew = !!asNew;
+  hideOverview();
+  // Call the normal saveMember(), which will validate again and
+  // persist the record to Customer Master Data and update logs
+  saveMember();
+}
+
 // Expose clear functions to global scope so they can be called via onclick in HTML
 window.clearPersonalInfo = clearPersonalInfo;
 window.clearManagementInfo = clearManagementInfo;
+// Expose overview and finalize save functions
+window.finalizeMemberSave = finalizeMemberSave;
+
+/* ------------------------------------------------------------------------
+ * Quick-add helper.  The three-line menu in the header doubles as a shortcut
+ * for staff to quickly create a new member.  When invoked it navigates to
+ * the Add/Update Members section and resets the form for a fresh entry.
+ */
+function openAddNewMember() {
+  // Show the members section.  This will populate dropdowns and reset UI
+  showSection('members');
+  // Clear the form so it is ready for a new record and reset any editIndex
+  clearMemberForm();
+  // Scroll to the top of the form to focus the user on personal information
+  const form = document.getElementById('memberForm');
+  if (form) {
+    form.scrollIntoView({ behavior: 'smooth' });
+  }
+}
+// Expose to global scope for inline onclick
+window.openAddNewMember = openAddNewMember;
 
 /* Clear personal information fields */
 function clearPersonalInfo() {
@@ -1942,10 +2131,45 @@ function renderLogs() {
 function renderFinance() {
   const fromInput = document.getElementById('finFrom');
   const toInput = document.getElementById('finTo');
+  const staffSelect = document.getElementById('finStaff');
+  const paymentSelect = document.getElementById('finPayment');
   const bodyEl = document.getElementById('financeBody');
   const footEl = document.getElementById('financeFoot');
   const emptyEl = document.getElementById('financeEmpty');
   if (!bodyEl || !footEl) return;
+  // Populate staff and payment method options if needed
+  // Preserve previously selected values
+  const selectedStaff = staffSelect ? staffSelect.value : '';
+  const selectedPayment = paymentSelect ? paymentSelect.value : '';
+  if (staffSelect && staffSelect.options.length === 0) {
+    // First option for all staff
+    const allOpt = document.createElement('option');
+    allOpt.value = '';
+    allOpt.textContent = 'All Staff';
+    staffSelect.appendChild(allOpt);
+    // Add each user as option
+    users.forEach(u => {
+      const opt = document.createElement('option');
+      opt.value = u.username;
+      opt.textContent = u.username;
+      staffSelect.appendChild(opt);
+    });
+    // Restore selection if previously selected
+    staffSelect.value = selectedStaff;
+  }
+  if (paymentSelect && paymentSelect.options.length === 0) {
+    const allPm = document.createElement('option');
+    allPm.value = '';
+    allPm.textContent = 'All Methods';
+    paymentSelect.appendChild(allPm);
+    settings.paymentMethod.forEach(pm => {
+      const opt = document.createElement('option');
+      opt.value = pm;
+      opt.textContent = pm;
+      paymentSelect.appendChild(opt);
+    });
+    paymentSelect.value = selectedPayment;
+  }
   // Parse date range
   let from = fromInput && fromInput.value ? new Date(fromInput.value) : null;
   let to = toInput && toInput.value ? new Date(toInput.value) : null;
@@ -1957,13 +2181,21 @@ function renderFinance() {
     to.setHours(23, 59, 59, 999);
   }
   // Filter members within date range (using billingDate). Convert
-  // billingDate strings to Date objects; if missing, skip record.
+  // billingDate strings to Date objects; if missing, skip record. Also filter by staff and payment method if selected.
   const filtered = members.filter(m => {
     if (!m.billingDate) return false;
     const d = new Date(m.billingDate);
     if (isNaN(d)) return false;
     if (from && d < from) return false;
     if (to && d > to) return false;
+    // Staff filter
+    if (staffSelect && staffSelect.value) {
+      if (!m.staff || m.staff !== staffSelect.value) return false;
+    }
+    // Payment method filter
+    if (paymentSelect && paymentSelect.value) {
+      if (!m.paymentMethod || m.paymentMethod !== paymentSelect.value) return false;
+    }
     return true;
   });
   // Compute totals per payment method
@@ -2014,6 +2246,8 @@ function renderFinance() {
 function setDefaultFinanceRange() {
   const fromInput = document.getElementById('finFrom');
   const toInput = document.getElementById('finTo');
+  const staffSelect = document.getElementById('finStaff');
+  const paymentSelect = document.getElementById('finPayment');
   if (!fromInput || !toInput) return;
   const now = new Date();
   const fromDate = new Date(now);
@@ -2021,6 +2255,9 @@ function setDefaultFinanceRange() {
   // Set valueAsDate to ensure proper formatting in the date input
   fromInput.valueAsDate = fromDate;
   toInput.valueAsDate = now;
+  // Reset other filters to 'All'
+  if (staffSelect) staffSelect.value = '';
+  if (paymentSelect) paymentSelect.value = '';
 }
 
 // Update logs pagination controls
@@ -2169,4 +2406,58 @@ window.debouncedSetLogsFilter = debouncedSetLogsFilter;
 window.exportLogsCsv = exportLogsCsv;
 window.showLogDetail = showLogDetail;
 window.hideLogDetail = hideLogDetail;
+
+/* --------------------------------------------------------------------- */
+/* Customer Master Data                                                   */
+/* --------------------------------------------------------------------- */
+
+/* Render the Customer Master Data table
+ * This section shows all persisted member records in a single table
+ * regardless of status.  The table includes most fields for easy
+ * reference and auditing.  Editing is still performed via the
+ * Add/Update Members section.
+ */
+function renderCustomerData() {
+  const tbody = document.getElementById('customerDataBody');
+  if (!tbody) return;
+  // Clear existing rows
+  tbody.innerHTML = '';
+  // Ensure members list loaded
+  members.forEach(member => {
+    const tr = document.createElement('tr');
+    function td(val) {
+      const cell = document.createElement('td');
+      cell.textContent = val || '';
+      return cell;
+    }
+    // Form number and ID
+    tr.appendChild(td(member.formNumber || ''));
+    tr.appendChild(td(member.id || ''));
+    // Personal details
+    tr.appendChild(td(member.name || ''));
+    tr.appendChild(td(member.dob || ''));
+    tr.appendChild(td(member.gender || ''));
+    // Mobile: display stored format (with + if present)
+    tr.appendChild(td(member.mobile || ''));
+    tr.appendChild(td(member.email || ''));
+    tr.appendChild(td(member.address || ''));
+    // Staff
+    tr.appendChild(td(member.staff || ''));
+    // Membership details
+    tr.appendChild(td(member.amount || ''));
+    tr.appendChild(td(member.plan || ''));
+    tr.appendChild(td(member.joinDate || ''));
+    tr.appendChild(td(member.billingDate || ''));
+    tr.appendChild(td(member.paymentBy || ''));
+    tr.appendChild(td(member.status || ''));
+    tr.appendChild(td(member.holdDuration || ''));
+    tr.appendChild(td(member.paymentMethod || ''));
+    tr.appendChild(td(member.payMonth || ''));
+    tr.appendChild(td(member.remark || ''));
+    tbody.appendChild(tr);
+  });
+}
+
+// Expose customer data rendering globally
+window.renderCustomerData = renderCustomerData;
 

@@ -92,6 +92,105 @@ body {
   pointer-events: none;
 }
 
+/* Clear search button next to mobile icon */
+.clear-search-btn {
+  margin-right: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border: none;
+  background: #e5e7eb;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.clear-search-btn:hover {
+  background: #d1d5db;
+}
+
+/* Close button at top-left of sections */
+.close-btn {
+  margin-left: 0.5rem;
+  padding: 0.25rem 0.75rem;
+  border: none;
+  background: #e5e7eb;
+  color: #333;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  float: right;
+}
+.close-btn:hover {
+  background: #d1d5db;
+}
+
+/* Position the close button in section headers at the top-right corner */
+.section h2 {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+.section h2 .close-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  float: none;
+}
+
+/* Greyed out Payment By cell */
+.payment-by-cell {
+  color: #777;
+}
+
+/* Settings fields and templates container */
+.settings-container {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+/* Overview table styling */
+.overview-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.overview-table th {
+  text-align: left;
+  padding: 4px;
+  font-weight: 600;
+  background: #f9fafb;
+  width: 40%;
+}
+.overview-table td {
+  padding: 4px;
+  background: #fff;
+}
+.overview-photo img {
+  max-width: 100%;
+  height: auto;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin-top: 0.5rem;
+}
+
+/* Section of categories (chips) */
+.settings-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+
+/* Section of message templates row-wise */
+.settings-templates {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Ensure template cards take full width */
+.settings-templates .template-card {
+  width: 100%;
+}
+
 .header-icons button {
   margin-left: 0.5rem;
   padding: 0.5rem;
@@ -716,7 +815,7 @@ select:disabled {
 }
 
 .toast {
-  background: #28a745;
+  background: #28a745; /* default success green */
   color: #fff;
   padding: 0.5rem 0.8rem;
   border-radius: 3px;
@@ -727,6 +826,20 @@ select:disabled {
 
 .toast.error {
   background: #dc3545;
+}
+
+/* Warning/info toast (orange/amber) */
+.toast.warning {
+  background: #fbbf24;
+  color: #000;
+}
+
+/* Success toast explicitly set (green).  The default `.toast` is also
+   green, but adding this class makes intent explicit when called
+   from code. */
+.toast.success {
+  background: #28a745;
+  color: #fff;
 }
 
 @keyframes fadein {
